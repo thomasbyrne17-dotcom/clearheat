@@ -12,14 +12,11 @@ import StepHome from "./StepHome";
 import StepHeating from "./StepHeating";
 import StepHeatPump from "./StepHeatPump";
 
-const BACKEND_BASE = 
+const BACKEND_BASE =
   process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://127.0.0.1:8000";
 
 export default function CalculatorWizard() {
-  // Wizard navigation ONLY
   const [step, setStep] = useState<0 | 1 | 2>(0);
-
-  // Report lifecycle
   const [reportReady, setReportReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastInputs, setLastInputs] = useState<ClearHeatInput | null>(null);
@@ -60,13 +57,10 @@ export default function CalculatorWizard() {
         body: JSON.stringify({ inputs: values }),
       });
 
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || "Evaluation failed");
-      }
+      if (!res.ok) throw new Error("Evaluation failed");
 
-      await res.json(); // ensure backend completed
-      setReportReady(true);
+      await res.json();
+      setReportReady(true); // ONLY unlocks download
     } catch (e: any) {
       alert(e?.message ?? "Error generating report");
     } finally {
@@ -96,48 +90,39 @@ export default function CalculatorWizard() {
     <Card>
       <CardHeader>
         <CardTitle>
-          {!reportReady && step === 0 && "Step 1: Home + usage"}
-          {!reportReady && step === 1 && "Step 2: Current heating + bills"}
-          {!reportReady && step === 2 && "Step 3: Heat pump + grant"}
-          {reportReady && "Report"}
+          {step === 0 && "Step 1: Home + usage"}
+          {step === 1 && "Step 2: Current heating + bills"}
+          {step === 2 && "Step 3: Heat pump + grant"}
         </CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {!reportReady && (
-          <>
-            {step === 0 && <StepHome form={form} />}
-            {step === 1 && <StepHeating form={form} />}
-            {step === 2 && <StepHeatPump form={form} />}
+        {step === 0 && <StepHome form={form} />}
+        {step === 1 && <StepHeating form={form} />}
+        {step === 2 && <StepHeatPump form={form} />}
 
-            <div className="flex justify-between">
-              <Button
-                variant="secondary"
-                disabled={step === 0}
-                onClick={() => setStep((s) => (s - 1) as any)}
-              >
-                Back
-              </Button>
+        <div className="flex justify-between">
+          <Button
+            variant="secondary"
+            disabled={step === 0}
+            onClick={() => setStep((s) => (s - 1) as any)}
+          >
+            Back
+          </Button>
 
-              {step < 2 ? (
-                <Button onClick={() => setStep((s) => (s + 1) as any)}>
-                  Next
-                </Button>
-              ) : (
-                <Button
-                  onClick={form.handleSubmit(runModel)}
-                  disabled={loading}
-                >
-                  {loading ? "Generating…" : "Generate report"}
-                </Button>
-              )}
-            </div>
-          </>
-        )}
+          {step < 2 ? (
+            <Button onClick={() => setStep((s) => (s + 1) as any)}>
+              Next
+            </Button>
+          ) : (
+            <Button onClick={form.handleSubmit(runModel)} disabled={loading}>
+              {loading ? "Generating…" : "Generate report"}
+            </Button>
+          )}
+        </div>
 
         {reportReady && (
-          <div className="space-y-6 text-center">
-            <h2 className="text-2xl font-semibold">Report ready</h2>
+          <div className="pt-6 border-t text-center">
             <Button onClick={downloadPdf}>Download report</Button>
           </div>
         )}

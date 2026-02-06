@@ -1,10 +1,9 @@
 import { z } from "zod";
 
 /**
- * NOTE:
- * - We use z.coerce.number() so form inputs (strings) become numbers.
- * - This also guarantees the inferred TS type is `number` (not `unknown`),
- *   which fixes the Vercel build error with zodResolver + useForm<ClearHeatInput>.
+ * IMPORTANT:
+ * - Use z.coerce.number() for numeric inputs from HTML forms (strings -> numbers)
+ * - Infer the TS type from the schema so useForm + zodResolver always match.
  */
 
 export const clearHeatSchema = z
@@ -21,17 +20,15 @@ export const clearHeatSchema = z
     fuel_type: z.enum(["gas", "kerosene"]),
     fuel_price_eur_per_unit: z.coerce.number().min(0).max(5),
     electricity_price_eur_per_kwh: z.coerce.number().min(0).max(5),
-    boiler_efficiency: z.coerce.number().min(0.5).max(1.0),
+    boiler_efficiency: z.coerce.number().min(0.5).max(1),
 
     hp_quote_eur: z.coerce.number().min(0).max(100000),
-    grant_applied: z.coerce.boolean().default(true),
-    grant_value_eur: z.coerce.number().min(0).default(6500),
+    grant_applied: z.coerce.boolean(),
+    grant_value_eur: z.coerce.number().min(0),
 
-    bill_mode: z
-      .enum(["annual_fuel_use", "annual_spend", "none"])
-      .default("annual_spend"),
+    bill_mode: z.enum(["annual_fuel_use", "annual_spend", "none"]),
 
-    // Keep these numeric (not unknown) while still optional
+    // optional but still numbers (NOT unknown)
     annual_fuel_use: z.coerce.number().min(0).optional(),
     annual_spend_eur: z.coerce.number().min(0).optional(),
   })
@@ -40,15 +37,14 @@ export const clearHeatSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["annual_fuel_use"],
-        message: "Required when bill mode is annual fuel use.",
+        message: "Required when bill_mode is annual_fuel_use",
       });
     }
-
     if (v.bill_mode === "annual_spend" && v.annual_spend_eur == null) {
       ctx.addIssue({
         code: "custom",
         path: ["annual_spend_eur"],
-        message: "Required when bill mode is annual spend.",
+        message: "Required when bill_mode is annual_spend",
       });
     }
   });

@@ -22,7 +22,7 @@ export default function CalculatorWizard() {
   const [lastInputs, setLastInputs] = useState<ClearHeatInput | null>(null);
 
   const form = useForm<ClearHeatInput>({
-    resolver: zodResolver(clearHeatSchema),
+    resolver: zodResolver(clearHeatSchema) as any,
     defaultValues: {
       ber_band: "C",
       floor_area_m2: 120,

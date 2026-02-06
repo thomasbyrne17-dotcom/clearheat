@@ -12,7 +12,8 @@ import StepHome from "./StepHome";
 import StepHeating from "./StepHeating";
 import StepHeatPump from "./StepHeatPump";
 
-const BACKEND_BASE = "http://127.0.0.1:8000";
+const BACKEND_BASE = 
+  process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://127.0.0.1:8000";
 
 export default function CalculatorWizard() {
   // Wizard navigation ONLY

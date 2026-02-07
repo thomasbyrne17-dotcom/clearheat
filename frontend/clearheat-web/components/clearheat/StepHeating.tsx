@@ -86,7 +86,7 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
 
       {billMode === "annual_spend" && (
         <div className="grid gap-2">
-          <Label>Annual spend (€)</Label>
+          <Label>Annual spend (€) (Include wood spend if used)</Label>
           <Input type="number" step="1" {...register("annual_spend_eur")} />
           {formState.errors.annual_spend_eur?.message && (
             <p className="text-sm text-destructive">

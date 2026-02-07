@@ -38,16 +38,13 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
         </div>
 
         <div className="grid gap-2">
-          <Label>Fuel price (€/unit)</Label>
+          <Label>Fuel price (Kerosene-€/L, Gas-€/kWh)</Label>
           <Input type="number" step="0.01" {...register("fuel_price_eur_per_unit")} />
           {formState.errors.fuel_price_eur_per_unit?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.fuel_price_eur_per_unit.message)}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Unit depends on fuel type (your backend defines “unit”).
-          </p>
         </div>
       </div>
 
@@ -101,7 +98,7 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
 
       {billMode === "annual_fuel_use" && (
         <div className="grid gap-2">
-          <Label>Annual fuel use (units)</Label>
+          <Label>Annual fuel use (Kerosene-Litres, Gas-kWh)</Label>
           <Input type="number" step="1" {...register("annual_fuel_use")} />
           {formState.errors.annual_fuel_use?.message && (
             <p className="text-sm text-destructive">

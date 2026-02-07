@@ -70,7 +70,6 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
               {String(formState.errors.boiler_efficiency.message)}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">0.50 – 1.00</p>
         </div>
 
         <div className="grid gap-2">

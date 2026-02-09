@@ -22,7 +22,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://clearheat.vercel.app",
+         "https://clearheat.ie",       # production
+        "https://www.clearheat.ie",   # optional, safe,
     ],
     allow_credentials=True,
     allow_methods=["*"],

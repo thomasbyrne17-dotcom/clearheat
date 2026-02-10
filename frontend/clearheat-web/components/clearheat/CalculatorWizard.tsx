@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { clearHeatSchema, type ClearHeatInput } from "@/lib/schema";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -14,7 +13,7 @@ import StepHeating from "./StepHeating";
 import StepHeatPump from "./StepHeatPump";
 
 /* ================================
-   GA4 helper (inline + safe)
+   GA4 helper (safe no-op)
 ================================ */
 
 declare global {
@@ -35,53 +34,52 @@ function gaEvent(name: string, params: Record<string, any> = {}) {
 const BACKEND_BASE =
   process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://127.0.0.1:8000";
 
-/* ================================
-   Calculator Wizard
-================================ */
-
 export default function CalculatorWizard() {
   const [step, setStep] = useState<0 | 1 | 2>(0);
-  const [loading, setLoading] = useState(false);
   const [reportReady, setReportReady] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [lastInputs, setLastInputs] = useState<ClearHeatInput | null>(null);
 
   const form = useForm<ClearHeatInput>({
     resolver: zodResolver(clearHeatSchema) as any,
     defaultValues: {
-      property_type: "residential",
-      floor_area_m2: 120,
       ber_band: "C",
-      bill_mode: "annual",
-      annual_bill_eur: 1800,
-      monthly_bill_eur: undefined,
-      fuel_type: "oil",
+      floor_area_m2: 120,
+      emitters: "radiators",
+
+      heating_pattern: "normal",
+      wood_use: "none",
+      occupants: 2,
+
+      fuel_type: "kerosene",
+      fuel_price_eur_per_unit: 1.1,
+      electricity_price_eur_per_kwh: 0.35,
+      boiler_efficiency: 0.85,
+
+      hp_quote_eur: 12000,
       grant_applied: true,
+      grant_value_eur: 6500,
+
+      // IMPORTANT: must match your schema union
+      bill_mode: "annual_spend",
+      annual_spend_eur: 2400,
     },
   });
 
-  /* ================================
-     Step navigation
-  ================================ */
-
-  function stepName(step: number) {
-    if (step === 0) return "home_usage";
-    if (step === 1) return "heating_bills";
+  function stepName(s: number) {
+    if (s === 0) return "home_usage";
+    if (s === 1) return "heating_bills";
     return "heat_pump_grant";
   }
 
   function goToStep(next: 0 | 1 | 2) {
     setStep(next);
-
     gaEvent("calculator_step_view", {
       step_index: next,
       step_name: stepName(next),
       page_path: "/calculator",
     });
   }
-
-  /* ================================
-     Run model
-  ================================ */
 
   async function runModel(values: ClearHeatInput) {
     setLoading(true);
@@ -102,29 +100,26 @@ export default function CalculatorWizard() {
         body: JSON.stringify({ inputs: values }),
       });
 
-      if (!res.ok) throw new Error("Model evaluation failed");
+      if (!res.ok) throw new Error("Evaluation failed");
 
       await res.json();
-      setReportReady(true);
+
+      setReportReady(true); // ONLY unlocks download
 
       gaEvent("report_generate_success", {
         page_path: "/calculator",
       });
-    } catch (err: any) {
+    } catch (e: any) {
       gaEvent("report_generate_error", {
         page_path: "/calculator",
-        error_message: String(err?.message ?? "unknown_error").slice(0, 120),
+        error_message: String(e?.message ?? "unknown_error").slice(0, 120),
       });
 
-      alert(err?.message ?? "Error generating report");
+      alert(e?.message ?? "Error generating report");
     } finally {
       setLoading(false);
     }
   }
-
-  /* ================================
-     Download PDF
-  ================================ */
 
   async function downloadPdf() {
     if (!lastInputs) return;
@@ -144,28 +139,22 @@ export default function CalculatorWizard() {
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = "clearheat_report.pdf";
       a.click();
-
       URL.revokeObjectURL(url);
 
       gaEvent("report_download_success", {
         page_path: "/calculator",
       });
-    } catch (err: any) {
+    } catch (e: any) {
       gaEvent("report_download_error", {
         page_path: "/calculator",
-        error_message: String(err?.message ?? "unknown_error").slice(0, 120),
+        error_message: String(e?.message ?? "unknown_error").slice(0, 120),
       });
     }
   }
-
-  /* ================================
-     Render
-  ================================ */
 
   return (
     <Card>
@@ -192,14 +181,9 @@ export default function CalculatorWizard() {
           </Button>
 
           {step < 2 ? (
-            <Button onClick={() => goToStep((step + 1) as any)}>
-              Next
-            </Button>
+            <Button onClick={() => goToStep((step + 1) as any)}>Next</Button>
           ) : (
-            <Button
-              onClick={form.handleSubmit(runModel)}
-              disabled={loading}
-            >
+            <Button onClick={form.handleSubmit(runModel)} disabled={loading}>
               {loading ? "Generating…" : "Generate report"}
             </Button>
           )}
@@ -207,9 +191,7 @@ export default function CalculatorWizard() {
 
         {reportReady && (
           <div className="pt-6 border-t text-center">
-            <Button onClick={downloadPdf}>
-              Download report
-            </Button>
+            <Button onClick={downloadPdf}>Download report</Button>
           </div>
         )}
       </CardContent>

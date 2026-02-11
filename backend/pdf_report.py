@@ -155,6 +155,57 @@ def draw_bullets(
 # -------------------------
 # Layout primitives (law-firm-ish)
 # -------------------------
+
+def draw_clearheat_logo(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    size: float = 10 * mm,
+    stroke: Color = COLOR_PRIMARY,
+    stroke_width: float = 1.6,
+) -> None:
+    """Draw the ClearHeat house + heat waves logo as vector strokes.
+
+    (x, y) is the top-left of the logo box.
+    """
+    c.saveState()
+    c.setStrokeColor(stroke)
+    c.setLineWidth(stroke_width)
+
+    # Coordinate system: normalised 40x40 like our SVG, scaled to `size`.
+    s = size / 40.0
+    ox, oy = x, y
+
+    def sx(v: float) -> float:
+        return ox + v * s
+
+    def sy(v: float) -> float:
+        # y given is top-left; SVG y grows downwards, canvas grows up.
+        return oy - v * s
+
+    # Roof
+    c.setLineJoin(1)
+    c.line(sx(8), sy(18), sx(20), sy(8))
+    c.line(sx(20), sy(8), sx(32), sy(18))
+
+    # Body
+    c.line(sx(12), sy(18), sx(12), sy(32))
+    c.line(sx(12), sy(32), sx(28), sy(32))
+    c.line(sx(28), sy(32), sx(28), sy(18))
+
+    # Heat waves (3 x cubic-ish curves approximated with bezier)
+    # Using two bezier segments per wave.
+    wave_x = [16, 20, 24]
+    for x0 in wave_x:
+        p = c.beginPath()
+        p.moveTo(sx(x0), sy(28))
+        # Segment 1
+        p.curveTo(sx(x0 - 2), sy(26), sx(x0 - 2), sy(24), sx(x0), sy(22))
+        # Segment 2
+        p.curveTo(sx(x0 + 2), sy(20), sx(x0 + 2), sy(18), sx(x0), sy(16))
+        c.drawPath(p, stroke=1, fill=0)
+
+    c.restoreState()
 def draw_header_footer(
     c: canvas.Canvas,
     page_num: int,
@@ -168,9 +219,14 @@ def draw_header_footer(
     c.setLineWidth(0.7)
     c.line(margin, H - margin + 4*mm, W - margin, H - margin + 4*mm)
 
+    # Brand (logo + wordmark)
+    logo_size = 9 * mm
+    logo_top = H - margin + 11.2 * mm
+    draw_clearheat_logo(c, margin, logo_top, size=logo_size, stroke=COLOR_PRIMARY, stroke_width=1.4)
+
     c.setFillColor(COLOR_PRIMARY)
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin, H - margin + 7.5*mm, "ClearHeat")
+    c.drawString(margin + logo_size + 3.5*mm, H - margin + 7.5*mm, "ClearHeat")
     c.setFont("Helvetica", 9)
     c.setFillColor(COLOR_MUTED)
     c.drawRightString(W - margin, H - margin + 7.5*mm, subtitle)
@@ -226,13 +282,17 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     draw_header_footer(c, 1, total_pages, W, H, margin, subtitle="Independent Payback Assessment")
     y = H - margin - 14*mm
 
+    # Brand lockup (engineering-consultancy feel)
+    brand_logo_size = 16 * mm
+    draw_clearheat_logo(c, x0, y + 6*mm, size=brand_logo_size, stroke=COLOR_PRIMARY, stroke_width=1.8)
+
     c.setFillColor(COLOR_PRIMARY)
     c.setFont("Helvetica-Bold", 22)
-    c.drawString(x0, y, "ClearHeat")
+    c.drawString(x0 + brand_logo_size + 4*mm, y, "ClearHeat")
     y -= 7*mm
     c.setFont("Helvetica", 11)
     c.setFillColor(COLOR_MUTED)
-    c.drawString(x0, y, "Independent heat pump payback report for Irish homes")
+    c.drawString(x0 + brand_logo_size + 4*mm, y, "Independent heat pump payback report for Irish homes")
     y -= 18*mm
 
     box_h = 56 * mm

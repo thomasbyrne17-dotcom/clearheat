@@ -166,13 +166,16 @@ def draw_clearheat_logo(
 ) -> None:
     """Draw the ClearHeat house + heat waves logo as vector strokes.
 
+    Matches the website SVG (house outline with three heat-wave lines).
     (x, y) is the top-left of the logo box.
     """
     c.saveState()
     c.setStrokeColor(stroke)
     c.setLineWidth(stroke_width)
+    c.setLineJoin(1)
+    c.setLineCap(1)
 
-    # Coordinate system: normalised 40x40 like our SVG, scaled to `size`.
+    # Normalised 40x40 coordinate system (like the SVG), scaled to `size`.
     s = size / 40.0
     ox, oy = x, y
 
@@ -180,28 +183,25 @@ def draw_clearheat_logo(
         return ox + v * s
 
     def sy(v: float) -> float:
-        # y given is top-left; SVG y grows downwards, canvas grows up.
+        # y is top-left; SVG y grows downwards, canvas grows upwards.
         return oy - v * s
 
-    # Roof
-    c.setLineJoin(1)
+    # House roof: M8 18 L20 8 L32 18
     c.line(sx(8), sy(18), sx(20), sy(8))
     c.line(sx(20), sy(8), sx(32), sy(18))
 
-    # Body
+    # House body: M12 18 V32 H28 V18
     c.line(sx(12), sy(18), sx(12), sy(32))
     c.line(sx(12), sy(32), sx(28), sy(32))
     c.line(sx(28), sy(32), sx(28), sy(18))
 
-    # Heat waves (3 x cubic-ish curves approximated with bezier)
-    # Using two bezier segments per wave.
-    wave_x = [16, 20, 24]
-    for x0 in wave_x:
+    # Heat waves (3): each is two bezier segments (to mimic the SVG path)
+    # Example SVG (x=16):
+    # M16 28 C14 26, 14 24, 16 22 C18 20, 18 18, 16 16
+    for x0 in (16, 20, 24):
         p = c.beginPath()
         p.moveTo(sx(x0), sy(28))
-        # Segment 1
         p.curveTo(sx(x0 - 2), sy(26), sx(x0 - 2), sy(24), sx(x0), sy(22))
-        # Segment 2
         p.curveTo(sx(x0 + 2), sy(20), sx(x0 + 2), sy(18), sx(x0), sy(16))
         c.drawPath(p, stroke=1, fill=0)
 

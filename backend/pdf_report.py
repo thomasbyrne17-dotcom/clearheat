@@ -221,15 +221,18 @@ def draw_header_footer(
 
     # Brand (logo + wordmark)
     logo_size = 9 * mm
-    logo_top = H - margin + 11.2 * mm
+    brand_font = 11
+    brand_y = H - margin + 7.8*mm  # baseline for wordmark/subtitle
+
+    # Align logo vertically with the wordmark (no “sad face” alignment issues)
+    cap_offset = brand_font * 0.123 * mm  # approx centre of caps above baseline
+    logo_top = brand_y + (logo_size / 2.0) + cap_offset
     draw_clearheat_logo(c, margin, logo_top, size=logo_size, stroke=COLOR_PRIMARY, stroke_width=1.4)
 
-    c.setFillColor(COLOR_PRIMARY)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(margin + logo_size + 3.5*mm, H - margin + 7.5*mm, "ClearHeat")
+    draw_clearheat_wordmark(c, margin + logo_size + 3.5*mm, brand_y, brand_font, COLOR_PRIMARY)
     c.setFont("Helvetica", 9)
     c.setFillColor(COLOR_MUTED)
-    c.drawRightString(W - margin, H - margin + 7.5*mm, subtitle)
+    c.drawRightString(W - margin, brand_y, subtitle)
 
     c.setStrokeColor(COLOR_LIGHT)
     c.setLineWidth(0.7)
@@ -239,6 +242,33 @@ def draw_header_footer(
     c.setFont("Helvetica", 8)
     c.drawString(margin, margin - 10*mm, "Not affiliated with installers, manufacturers, or grant providers.")
     c.drawRightString(W - margin, margin - 10*mm, f"Page {page_num} of {total_pages}")
+
+
+def draw_clearheat_wordmark(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    font_size: int,
+    color: Color = COLOR_PRIMARY,
+) -> float:
+    """Draw 'ClearHeat' like the website wordmark: Clear regular, Heat bold.
+    Returns the x-position after the wordmark.
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    c.saveState()
+    c.setFillColor(color)
+
+    c.setFont("Helvetica", font_size)
+    c.drawString(x, y, "Clear")
+    w_clear = stringWidth("Clear", "Helvetica", font_size)
+
+    c.setFont("Helvetica-Bold", font_size)
+    c.drawString(x + w_clear, y, "Heat")
+    w_heat = stringWidth("Heat", "Helvetica-Bold", font_size)
+
+    c.restoreState()
+    return x + w_clear + w_heat
 
 
 def draw_section_title(c: canvas.Canvas, x: float, y: float, title: str) -> float:
@@ -284,11 +314,13 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
 
     # Brand lockup (engineering-consultancy feel)
     brand_logo_size = 16 * mm
-    draw_clearheat_logo(c, x0, y + 6*mm, size=brand_logo_size, stroke=COLOR_PRIMARY, stroke_width=1.8)
+    brand_font = 22
 
-    c.setFillColor(COLOR_PRIMARY)
-    c.setFont("Helvetica-Bold", 22)
-    c.drawString(x0 + brand_logo_size + 4*mm, y, "ClearHeat")
+    cap_offset = brand_font * 0.123 * mm
+    logo_top = y + (brand_logo_size / 2.0) + cap_offset
+    draw_clearheat_logo(c, x0, logo_top, size=brand_logo_size, stroke=COLOR_PRIMARY, stroke_width=1.8)
+
+    draw_clearheat_wordmark(c, x0 + brand_logo_size + 4*mm, y, brand_font, COLOR_PRIMARY)
     y -= 7*mm
     c.setFont("Helvetica", 11)
     c.setFillColor(COLOR_MUTED)

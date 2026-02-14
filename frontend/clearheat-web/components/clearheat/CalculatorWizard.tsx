@@ -48,14 +48,16 @@ export default function CalculatorWizard() {
 
   // Optional: auto-scroll the user back to the download area after payment
   useEffect(() => {
-    if (!paidSessionId) {
+    if (success && sessionId) {
       localStorage.setItem("ch_session_id", sessionId);
+
       gaEvent("stripe_return_success", { page_path: "/calculator" });
 
       setStep(2);
       setReportReady(true);
     }
   }, [success, sessionId]);
+
 
   const paidSessionId =
     sessionId ||

@@ -109,6 +109,7 @@ export default function CalculatorWizard() {
   async function runModel(values: ClearHeatInput) {
     setLoading(true);
     setLastInputs(values);
+    localStorage.setItem("ch_last_inputs", JSON.stringify(values));
 
     gaEvent("report_generate_click", {
       page_path: "/calculator",
@@ -146,12 +147,28 @@ export default function CalculatorWizard() {
     }
   }
 
+    
     async function downloadPdf() {
-    if (!lastInputs) return;
+      const inputs: ClearHeatInput | null =
+        lastInputs ??
+        (() => {
+          const raw = localStorage.getItem("ch_last_inputs");
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw) as ClearHeatInput;
+          } catch {
+            return null;
+          }
+        })();
 
-    gaEvent("report_download_click", { page_path: "/calculator" });
+      if (!inputs) {
+        alert("Please generate the report first.");
+        return;
+      }
 
-    try {
+      gaEvent("report_download_click", { page_path: "/calculator" });
+
+      try {
       // If not paid yet, start Stripe Checkout
       if (!paidSessionId) {
         const r = await fetch("/api/stripe/create-checkout-session", {
@@ -171,7 +188,7 @@ export default function CalculatorWizard() {
       const res = await fetch("/api/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: paidSessionId, inputs: lastInputs }),
+        body: JSON.stringify({ session_id: paidSessionId, inputs }),
       });
 
       if (!res.ok) {

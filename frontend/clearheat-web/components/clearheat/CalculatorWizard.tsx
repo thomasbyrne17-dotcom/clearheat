@@ -107,7 +107,7 @@ export default function CalculatorWizard() {
     });
 
     try {
-      const res = await fetch(`${BACKEND_BASE}/run`, {
+      const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inputs: values }),

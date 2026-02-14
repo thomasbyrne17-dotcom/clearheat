@@ -26,10 +26,12 @@ app.add_middleware(
         "https://clearheat.ie",
         "https://www.clearheat.ie",
     ],
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 
 class AnalysisRequest(BaseModel):

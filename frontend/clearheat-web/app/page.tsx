@@ -12,7 +12,7 @@ export default function HomePage() {
       <header className="flex items-center justify-between">
         <Logo />
         <Link href="/calculator">
-          <Button size="sm">Get verdict</Button>
+          <Button size="sm">Get Verdict</Button>
         </Link>
       </header>
 
@@ -20,11 +20,11 @@ export default function HomePage() {
       <section className="grid gap-10 lg:grid-cols-2 lg:items-center">
         <div className="space-y-6">
           <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
-            Is a heat pump{" "}
+            Before you spend{" "}
             <span className="underline underline-offset-4">
-              financially worth it
+              €20,000 on a Heat Pump,
             </span>{" "}
-            for your home?
+            run the numbers.
           </h1>
 
           <p className="text-lg text-muted-foreground">
@@ -36,7 +36,7 @@ export default function HomePage() {
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/calculator">Start free calculation</Link>
+              <Link href="/calculator">Start Calculation</Link>
             </Button>
             <Button
               asChild
@@ -44,13 +44,13 @@ export default function HomePage() {
               size="lg"
               className="w-full sm:w-auto"
             >
-              <Link href="#why-independent">Why this is different</Link>
+              <Link href="#why-independent">Why This is Different</Link>
             </Button>
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <span>2–4 minutes</span>
-            <span>No install commitment</span>
+            <span>No Install Commitment</span>
             <span>Built for Ireland</span>
           </div>
         </div>
@@ -68,12 +68,12 @@ export default function HomePage() {
             <div>
               <p className="font-medium">Clear verdict</p>
               <p className="text-muted-foreground">
-                Likely to save, borderline, or unlikely — stated plainly.
+                Likely to save, Borderline, or Unlikely — stated plainly.
               </p>
             </div>
 
             <div>
-              <p className="font-medium">Payback estimate (range)</p>
+              <p className="font-medium">Payback Estimate (range)</p>
               <p className="text-muted-foreground">
                 A realistic range, not a single over-confident number.
               </p>
@@ -110,7 +110,7 @@ export default function HomePage() {
       <section id="why-independent" className="space-y-8">
         <div className="space-y-2">
           <h2 className="text-3xl font-semibold">
-            Why ClearHeat is different
+            Why ClearHeat is Different
           </h2>
           <p className="text-muted-foreground max-w-2xl">
             Most calculators are designed to generate quotes. ClearHeat is
@@ -143,7 +143,7 @@ export default function HomePage() {
           <Card className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">Irish-specific</p>
             <p className="font-semibold text-lg">
-              Grants + real local costs
+              Grants & Real Local Costs
             </p>
             <p className="text-sm text-muted-foreground">
               Built around Irish grants, fuel prices and electricity costs.
@@ -157,7 +157,7 @@ export default function HomePage() {
         <div>
           <h2 className="text-3xl font-semibold">How it works</h2>
           <p className="text-muted-foreground">
-            Three short steps. Clear output.
+            Three Short Steps. Clear output.
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 1</p>
             <p className="font-semibold">Home + usage</p>
             <p className="text-sm text-muted-foreground">
-              BER band, floor area and occupancy.
+              BER band, Floor Area and Occupancy.
             </p>
           </Card>
 
@@ -174,7 +174,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 2</p>
             <p className="font-semibold">Current heating</p>
             <p className="text-sm text-muted-foreground">
-              Fuel type and annual spend or usage.
+              Fuel Type and Annual Spend or Usage.
             </p>
           </Card>
 
@@ -182,14 +182,14 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 3</p>
             <p className="font-semibold">Heat pump + grant</p>
             <p className="text-sm text-muted-foreground">
-              Your quote and grant assumptions. Report generated instantly.
+              Your quote and grant assumptions. Report Generated Instantly.
             </p>
           </Card>
         </div>
 
         <div className="flex justify-center">
           <Button asChild size="lg">
-            <Link href="/calculator">Start calculation</Link>
+            <Link href="/calculator">Start Calculation</Link>
           </Button>
         </div>
       </section>
@@ -204,7 +204,7 @@ export default function HomePage() {
           payback estimate based on your home.
         </p>
         <Button asChild size="lg">
-          <Link href="/calculator">Generate your report</Link>
+          <Link href="/calculator">Generate Your Report</Link>
         </Button>
       </section>
 

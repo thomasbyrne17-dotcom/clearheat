@@ -48,16 +48,20 @@ export default function CalculatorWizard() {
 
   // Optional: auto-scroll the user back to the download area after payment
   useEffect(() => {
-    if (success && sessionId) {
+    if (!paidSessionId) {
+      localStorage.setItem("ch_session_id", sessionId);
       gaEvent("stripe_return_success", { page_path: "/calculator" });
 
       setStep(2);
       setReportReady(true);
-
-      router.replace("/calculator");
     }
   }, [success, sessionId]);
 
+  const paidSessionId =
+    sessionId ||
+    (typeof window !== "undefined" ? localStorage.getItem("ch_session_id") : null);
+
+  const isPaid = !!paidSessionId;
 
   const form = useForm<ClearHeatInput>({
     resolver: zodResolver(clearHeatSchema) as any,
@@ -147,7 +151,7 @@ export default function CalculatorWizard() {
 
     try {
       // If not paid yet, start Stripe Checkout
-      if (!success || !sessionId) {
+      if (!paidSessionId) {
         const r = await fetch("/api/stripe/create-checkout-session", {
           method: "POST",
         });
@@ -165,7 +169,7 @@ export default function CalculatorWizard() {
       const res = await fetch("/api/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, inputs: lastInputs }),
+        body: JSON.stringify({ session_id: paidSessionId, inputs: lastInputs }),
       });
 
       if (!res.ok) {
@@ -234,7 +238,7 @@ export default function CalculatorWizard() {
         {reportReady && (
           <div className="pt-6 border-t text-center">
             <Button onClick={downloadPdf}>
-              {success && sessionId ? "Download Report" : "Pay & Download Report"}
+              {isPaid ? "Download Report" : "Pay & Download Report"}
             </Button>
 
           </div>

@@ -1,29 +1,30 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import os
 from typing import Any, Dict
+
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from pydantic import BaseModel
+
+from engine import run_analysis
 from pdf_report import build_pdf
 
-
-from engine import run_analysis  # imports your engine.py
-
+PDF_KEY = os.getenv("CLEARHEAT_PDF_KEY")
 
 app = FastAPI(
     title="Heat Pump Payback API",
     version="0.1.0",
 )
 
-# Allow your future frontend (localhost, Vercel, etc.) to call the API.
-# For production, lock this down to your real domain(s).
+# Allow frontend domains to call the API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-         "https://clearheat.ie",       # production
-        "https://www.clearheat.ie",   # optional, safe,
+        "https://clearheat.ie",
+        "https://www.clearheat.ie",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -32,7 +33,7 @@ app.add_middleware(
 
 
 class AnalysisRequest(BaseModel):
-    # We accept a dict so your frontend can evolve without rewriting the backend.
+    # Accept a dict so the frontend can evolve without rewriting the backend.
     inputs: Dict[str, Any]
 
 
@@ -47,14 +48,20 @@ def run(req: AnalysisRequest):
         report = run_analysis(req.inputs)
         return report
     except ValueError as e:
-        # Validation errors from your engine
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        # Unexpected errors
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
+
 @app.post("/pdf")
-def pdf(req: AnalysisRequest):
+def pdf(
+    req: AnalysisRequest,
+    x_clearheat_pdf_key: str | None = Header(default=None),
+):
+    # 🔒 Hard lock (also protects you if the env var isn't set)
+    if not PDF_KEY or x_clearheat_pdf_key != PDF_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
         report = run_analysis(req.inputs)
         pdf_bytes = build_pdf(report)
@@ -62,9 +69,7 @@ def pdf(req: AnalysisRequest):
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": "attachment; filename=heat_pump_report.pdf"
-            }
+            headers={"Content-Disposition": "attachment; filename=clearheat_report.pdf"},
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

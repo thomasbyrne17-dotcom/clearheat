@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams, useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { clearHeatSchema, type ClearHeatInput } from "@/lib/schema";
@@ -39,6 +40,18 @@ export default function CalculatorWizard() {
   const [reportReady, setReportReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastInputs, setLastInputs] = useState<ClearHeatInput | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const sessionId = searchParams.get("session_id");
+  const success = searchParams.get("success") === "1";
+
+  // Optional: auto-scroll the user back to the download area after payment
+  useEffect(() => {
+    if (success && sessionId) {
+      gaEvent("stripe_return_success", { page_path: "/calculator" });
+    }
+  }, [success, sessionId]);
 
   const form = useForm<ClearHeatInput>({
     resolver: zodResolver(clearHeatSchema) as any,
@@ -121,40 +134,63 @@ export default function CalculatorWizard() {
     }
   }
 
-  async function downloadPdf() {
+    async function downloadPdf() {
     if (!lastInputs) return;
 
-    gaEvent("report_download_click", {
-      page_path: "/calculator",
-    });
+    gaEvent("report_download_click", { page_path: "/calculator" });
 
     try {
-      const res = await fetch(`${BACKEND_BASE}/pdf`, {
+      // If not paid yet, start Stripe Checkout
+      if (!success || !sessionId) {
+        const r = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+        });
+
+        if (!r.ok) throw new Error("Failed to start checkout");
+
+        const data = await r.json();
+        if (!data?.url) throw new Error("Stripe checkout URL missing");
+
+        window.location.href = data.url;
+        return;
+      }
+
+      // Paid: fetch the PDF via Next.js API (server verifies Stripe + calls backend with secret header)
+      const res = await fetch("/api/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inputs: lastInputs }),
+        body: JSON.stringify({ session_id: sessionId, inputs: lastInputs }),
       });
 
-      if (!res.ok) throw new Error("PDF generation failed");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`PDF download failed: ${text}`);
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "clearheat_report.pdf";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
 
-      gaEvent("report_download_success", {
-        page_path: "/calculator",
-      });
+      gaEvent("report_download_success", { page_path: "/calculator" });
+
+      // Clean URL so refresh doesn't reuse an old session_id
+      router.replace("/calculator");
     } catch (e: any) {
       gaEvent("report_download_error", {
         page_path: "/calculator",
         error_message: String(e?.message ?? "unknown_error").slice(0, 120),
       });
+
+      alert(e?.message ?? "Error downloading PDF");
     }
   }
+
 
   return (
     <Card>
@@ -191,7 +227,10 @@ export default function CalculatorWizard() {
 
         {reportReady && (
           <div className="pt-6 border-t text-center">
-            <Button onClick={downloadPdf}>Download report</Button>
+            <Button onClick={downloadPdf}>
+              {success && sessionId ? "Download Report" : "Pay & Download Report"}
+            </Button>
+
           </div>
         )}
       </CardContent>

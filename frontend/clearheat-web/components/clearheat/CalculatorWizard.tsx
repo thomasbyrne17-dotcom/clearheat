@@ -50,8 +50,14 @@ export default function CalculatorWizard() {
   useEffect(() => {
     if (success && sessionId) {
       gaEvent("stripe_return_success", { page_path: "/calculator" });
+
+      setStep(2);
+      setReportReady(true);
+
+      router.replace("/calculator");
     }
   }, [success, sessionId]);
+
 
   const form = useForm<ClearHeatInput>({
     resolver: zodResolver(clearHeatSchema) as any,

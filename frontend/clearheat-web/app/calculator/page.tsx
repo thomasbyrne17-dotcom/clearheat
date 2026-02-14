@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import CalculatorWizard from "@/components/clearheat/CalculatorWizard";
 import CalculatorStartedTracker from "@/components/clearheat/CalculatorStartedTracker";
 
@@ -12,7 +13,9 @@ export default function CalculatorPage() {
       </p>
 
       <div className="mt-6">
-        <CalculatorWizard />
+        <Suspense fallback={null}>
+          <CalculatorWizard />
+        </Suspense>
       </div>
     </main>
   );

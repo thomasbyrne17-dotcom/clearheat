@@ -20,11 +20,11 @@ export default function HomePage() {
       <section className="grid gap-10 lg:grid-cols-2 lg:items-center">
         <div className="space-y-6">
           <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
-            Before you spend{" "}
+            Should You Get a Heat Pump?
+            <br />
             <span className="underline underline-offset-4">
-              €20,000 on a Heat Pump,
-            </span>{" "}
-            run the numbers.
+              A €20,000 decision deserves a €29 analysis.
+            </span>
           </h1>
 
           <p className="text-lg text-muted-foreground">

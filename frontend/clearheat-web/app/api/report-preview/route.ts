@@ -8,9 +8,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing reportId" }, { status: 400 });
   }
 
-  const backend = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL;
+  const backend = process.env.NEXT_PUBLIC_BACKEND_BASE || process.env.NEXT_PUBLIC_API_URL;
   if (!backend) {
-    return NextResponse.json({ error: "BACKEND_URL not set" }, { status: 500 });
+    return NextResponse.json({ error: "NEXT_PUBLIC_BACKEND_BASE not set" }, { status: 500 });
   }
 
   const res = await fetch(`${backend}/report/${encodeURIComponent(reportId)}/preview`, {

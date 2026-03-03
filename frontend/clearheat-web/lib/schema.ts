@@ -35,6 +35,10 @@ export const clearHeatSchema = z
     floor_area_m2: num(20, 1000),
 
     emitters: z.enum(["radiators", "ufh"]),
+
+    // V2: flow temperature proxy (optional; engine defaults to medium for radiators, high for UFH)
+    flow_temp_capability: z.enum(["low", "medium", "high"]).optional(),
+
     heating_pattern: z.enum(["rare", "normal", "high"]),
     wood_use: z.enum(["none", "some", "lots"]),
     occupants: z.preprocess(asNumber, z.number().int().min(1).max(20)),
@@ -52,6 +56,9 @@ export const clearHeatSchema = z
 
     annual_fuel_use: numOpt(0, 500000),
     annual_spend_eur: numOpt(0, 200000),
+
+    // V2: does annual bill include DHW? (optional; engine defaults True)
+    dhw_on_same_fuel: bool.optional(),
   })
   .superRefine((v, ctx) => {
     if (v.bill_mode === "annual_fuel_use" && v.annual_fuel_use == null) {

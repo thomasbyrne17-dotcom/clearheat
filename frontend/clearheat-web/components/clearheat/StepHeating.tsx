@@ -13,10 +13,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInput> }) {
+export default function StepHeating({
+  form,
+}: {
+  form: UseFormReturn<ClearHeatInput>;
+}) {
   const { register, setValue, watch, formState } = form;
 
   const billMode = watch("bill_mode");
+  const dhwSameFuel = watch("dhw_on_same_fuel");
 
   return (
     <div className="grid gap-4">
@@ -39,7 +44,11 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
 
         <div className="grid gap-2">
           <Label>Fuel price (Kerosene-€/L, Gas-€/kWh)</Label>
-          <Input type="number" step="0.01" {...register("fuel_price_eur_per_unit")} />
+          <Input
+            type="number"
+            step="0.01"
+            {...register("fuel_price_eur_per_unit")}
+          />
           {formState.errors.fuel_price_eur_per_unit?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.fuel_price_eur_per_unit.message)}
@@ -51,7 +60,11 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
       <div className="grid grid-cols-3 gap-4">
         <div className="grid gap-2">
           <Label>Electricity price (€/kWh)</Label>
-          <Input type="number" step="0.01" {...register("electricity_price_eur_per_kwh")} />
+          <Input
+            type="number"
+            step="0.01"
+            {...register("electricity_price_eur_per_kwh")}
+          />
           {formState.errors.electricity_price_eur_per_kwh?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.electricity_price_eur_per_kwh.message)}
@@ -71,7 +84,10 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
 
         <div className="grid gap-2">
           <Label>Bill input mode</Label>
-          <Select value={billMode} onValueChange={(v) => setValue("bill_mode", v as any)}>
+          <Select
+            value={billMode}
+            onValueChange={(v) => setValue("bill_mode", v as any)}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -83,6 +99,28 @@ export default function StepHeating({ form }: { form: UseFormReturn<ClearHeatInp
           </Select>
         </div>
       </div>
+
+      {/* V2: DHW linkage toggle (only relevant when bills are used) */}
+      {billMode !== "none" && (
+        <div className="grid gap-2">
+          <Label>Does this bill include hot water?</Label>
+          <Select
+            value={dhwSameFuel === false ? "no" : "yes"} // default to "yes" if undefined
+            onValueChange={(v) => setValue("dhw_on_same_fuel", v === "yes")}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes — same system/fuel</SelectItem>
+              <SelectItem value="no">No — hot water is separate</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-muted-foreground">
+            This improves accuracy for bills-based estimates.
+          </p>
+        </div>
+      )}
 
       {billMode === "annual_spend" && (
         <div className="grid gap-2">

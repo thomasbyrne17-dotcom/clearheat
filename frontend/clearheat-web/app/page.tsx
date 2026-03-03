@@ -21,20 +21,17 @@ export default function HomePage() {
           <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
             Should You Get a Heat Pump?
             <br />
-            <span className="text-muted-foreground">
-              A €20,000 decision.
-            </span>
+            <span className="text-muted-foreground">A €20,000 decision.</span>
             <br />
-            <span className="underline underline-offset-4">
-              €29 to verify it.
-            </span>
+            <span className="underline underline-offset-4">€29 to verify it.</span>
           </h1>
 
           <p className="text-lg text-muted-foreground">
             Most online heat pump calculators are built by installers.
             <br />
-            ClearHeat is independent. It models grant impact, fuel costs, electricity price and usage
-            to produce a plain-English financial verdict — not a sales estimate.
+            ClearHeat is independent. It models grant impact, fuel costs,
+            electricity price and usage to produce a plain-English financial
+            verdict — not a sales estimate.
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -62,38 +59,27 @@ export default function HomePage() {
         <Card className="p-6 sm:p-8 space-y-6">
           <div>
             <p className="text-sm text-muted-foreground">What you receive</p>
-            <h2 className="text-2xl font-semibold">ClearHeat Financial Report (PDF)</h2>
+            <h2 className="text-2xl font-semibold">
+              ClearHeat Financial Report (PDF)
+            </h2>
           </div>
 
-          <div className="space-y-4 text-sm">
-            <div>
-              <p className="font-medium">Clear verdict</p>
-              <p className="text-muted-foreground">
-                Likely to save, Borderline, or Unlikely — stated plainly.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-medium">Payback estimate (range)</p>
-              <p className="text-muted-foreground">
-                A realistic range, not a single over-confident number.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-medium">Confidence score</p>
-              <p className="text-muted-foreground">
-                See how strongly the conclusion is supported by your inputs.
-              </p>
-            </div>
-
-            <div>
-              <p className="font-medium">Transparent assumptions</p>
-              <p className="text-muted-foreground">
-                See what drives the result and what could change it.
-              </p>
-            </div>
-          </div>
+          {/* UPDATED: V2 contents (clean list) */}
+          <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5">
+            <li>
+              <span className="text-foreground font-medium">
+                Executive summary
+              </span>{" "}
+              with a clear financial verdict
+            </li>
+            <li>20-year cost comparison vs your current fuel</li>
+            <li>Best / typical / worst performance scenarios</li>
+            <li>Grant-adjusted payback timeline</li>
+            <li>Sensitivity analysis (electricity price ±15%)</li>
+            <li>Long-term fuel & electricity price escalation assumptions</li>
+            <li>Risk assessment summary (what can flip the outcome)</li>
+            <li>Transparent methodology & modelling assumptions</li>
+          </ul>
 
           <Separator />
 
@@ -117,8 +103,8 @@ export default function HomePage() {
         <div className="space-y-2">
           <h2 className="text-3xl font-semibold">Why ClearHeat is Different</h2>
           <p className="text-muted-foreground max-w-2xl">
-            Most calculators are designed to generate leads or quotes.
-            ClearHeat is designed to evaluate the decision.
+            Most calculators are designed to generate leads or quotes. ClearHeat
+            is designed to evaluate the decision.
           </p>
         </div>
 
@@ -127,16 +113,19 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Independent</p>
             <p className="font-semibold text-lg">Not installer-sponsored</p>
             <p className="text-sm text-muted-foreground">
-              ClearHeat does not install heat pumps. The goal is financial clarity, not lead capture.
+              ClearHeat does not install heat pumps. The goal is financial
+              clarity, not lead capture.
             </p>
           </Card>
 
           <Card className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">More grounded</p>
-            <p className="font-semibold text-lg">Models real inputs, not wishful defaults</p>
+            <p className="font-semibold text-lg">
+              Models real inputs, not wishful defaults
+            </p>
             <p className="text-sm text-muted-foreground">
-              Uses fuel price, electricity price, boiler efficiency, grant impact and usage patterns —
-              not a single “COP” number.
+              Uses fuel price, electricity price, boiler efficiency, grant
+              impact and usage patterns — not a single “COP” number.
             </p>
           </Card>
 
@@ -144,7 +133,8 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Irish-specific</p>
             <p className="font-semibold text-lg">Grants & real local costs</p>
             <p className="text-sm text-muted-foreground">
-              Built around Irish grants, common fuels, and typical electricity pricing.
+              Built around Irish grants, common fuels, and typical electricity
+              pricing.
             </p>
           </Card>
         </div>

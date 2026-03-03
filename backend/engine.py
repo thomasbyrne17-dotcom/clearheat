@@ -47,6 +47,36 @@ def emitter_to_scop_range(emitters: str) -> Tuple[float, float, float]:
     raise ValueError("emitters must be 'radiators' or 'ufh'.")
 
 
+def adjusted_scop_range(emitters: str, flow_temp_capability: str) -> Tuple[float, float, float]:
+    """
+    V2: Adjust SCOP range using a homeowner-friendly proxy for achievable flow temperature.
+    - flow_temp_capability: 'low' | 'medium' | 'high'
+    For UFH, we keep a tight, generally higher range (flow temp is typically lower).
+    """
+    e = emitters.strip().lower()
+    ft = (flow_temp_capability or "medium").strip().lower()
+    if ft not in {"low", "medium", "high"}:
+        raise ValueError("flow_temp_capability must be 'low', 'medium', or 'high'.")
+
+    if e == "ufh":
+        # UFH generally supports low flow temps; still leave modest uncertainty
+        if ft == "low":
+            return (2.9, 3.3, 3.8)
+        if ft == "high":
+            return (3.4, 3.8, 4.4)
+        return (3.2, 3.6, 4.2)
+
+    if e == "radiators":
+        # Radiators are the pivot: flow temperature dominates seasonal efficiency.
+        if ft == "high":   # likely ≤45°C capability / oversized radiators / well-insulated
+            return (2.8, 3.3, 3.8)
+        if ft == "low":    # likely high flow temps needed / small rads / poor fabric
+            return (2.0, 2.5, 3.0)
+        return (2.4, 2.9, 3.4)
+
+    raise ValueError("emitters must be 'radiators' or 'ufh'.")
+
+
 def heating_pattern_multiplier(pattern: str) -> float:
     """
     Behavioural slider applied to BER-based *space heating only*.
@@ -114,6 +144,129 @@ def band_hp_costs_from_heat(
 
 def payback_years(capex_eur: float, annual_savings_eur: float) -> float:
     return math.inf if annual_savings_eur <= 0 else capex_eur / annual_savings_eur
+
+
+# -----------------------------
+# V2 finance defaults (simple, defensible)
+# -----------------------------
+
+HORIZON_YEARS = 10
+
+ELEC_ESCALATION = 0.03   # 3%/yr
+FUEL_ESCALATION = 0.04   # 4%/yr
+DISCOUNT_RATE   = 0.05   # 5%/yr
+
+MAINTENANCE_CURRENT_EUR_PER_YR = 180.0
+MAINTENANCE_HP_EUR_PER_YR      = 220.0
+
+SENS_PCT = 0.15  # ±15% for SCOP and electricity price
+
+
+def clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def build_10yr_financials(
+    capex: float,
+    current_cost_typ: float,
+    hp_cost_typ: float,
+    fuel_escalation: float = FUEL_ESCALATION,
+    elec_escalation: float = ELEC_ESCALATION,
+    discount_rate: float = DISCOUNT_RATE,
+    maint_current: float = MAINTENANCE_CURRENT_EUR_PER_YR,
+    maint_hp: float = MAINTENANCE_HP_EUR_PER_YR,
+    years: int = HORIZON_YEARS,
+) -> Dict[str, Any]:
+    """
+    10-year cashflow and NPV model.
+
+    Year t = 1..N:
+      Ccur_t = Ccur0*(1+g_fuel)^t + m_cur
+      Chp_t  = Chp0*(1+g_elec)^t + m_hp
+      S_t    = Ccur_t - Chp_t
+      DS_t   = S_t/(1+r)^t
+      NPV    = -capex + Σ DS_t
+
+    Break-even year: first year where cumulative (undiscounted) savings >= capex.
+    """
+    cashflows: List[Dict[str, Any]] = []
+    cum = 0.0
+    npv = -capex
+    break_even: Optional[int] = None
+
+    for t in range(1, years + 1):
+        ccur_t = (current_cost_typ * ((1 + fuel_escalation) ** t)) + maint_current
+        chp_t  = (hp_cost_typ      * ((1 + elec_escalation) ** t)) + maint_hp
+        s_t = ccur_t - chp_t
+        ds_t = s_t / ((1 + discount_rate) ** t)
+
+        cum += s_t
+        npv += ds_t
+
+        if break_even is None and capex > 0 and cum >= capex:
+            break_even = t
+
+        cashflows.append({
+            "year": t,
+            "current_cost_eur": ccur_t,
+            "hp_cost_eur": chp_t,
+            "savings_eur": s_t,
+            "discounted_savings_eur": ds_t,
+            "cumulative_savings_eur": cum,
+        })
+
+    return {
+        "cashflow_10yr": cashflows,
+        "npv_10yr_eur": npv,
+        "break_even_year": break_even,
+        "assumptions": {
+            "years": years,
+            "fuel_escalation": fuel_escalation,
+            "electricity_escalation": elec_escalation,
+            "discount_rate": discount_rate,
+            "maintenance_current_eur_per_yr": maint_current,
+            "maintenance_hp_eur_per_yr": maint_hp,
+        }
+    }
+
+
+def hp_cost_typ_from_heat(Q_typ_kwh_th: float, scop_typ: float, elec_price: float) -> float:
+    if scop_typ <= 0:
+        return float("inf")
+    return (Q_typ_kwh_th / scop_typ) * elec_price
+
+
+def npv_sensitivity_band(
+    capex: float,
+    Q_typ_kwh_th: float,
+    scop_typ: float,
+    elec_price: float,
+    current_cost_typ: float,
+) -> Dict[str, Any]:
+    """
+    Sensitivity (10yr NPV):
+      - SCOP ±15%
+      - Electricity price ±15%
+    Returns base/best/worst NPVs.
+    """
+    base_hp_cost = hp_cost_typ_from_heat(Q_typ_kwh_th, scop_typ, elec_price)
+    base = build_10yr_financials(capex, current_cost_typ, base_hp_cost)
+
+    best_hp_cost = hp_cost_typ_from_heat(Q_typ_kwh_th, scop_typ * (1 + SENS_PCT), elec_price * (1 - SENS_PCT))
+    best = build_10yr_financials(capex, current_cost_typ, best_hp_cost)
+
+    worst_hp_cost = hp_cost_typ_from_heat(Q_typ_kwh_th, scop_typ * (1 - SENS_PCT), elec_price * (1 + SENS_PCT))
+    worst = build_10yr_financials(capex, current_cost_typ, worst_hp_cost)
+
+    return {
+        "npv_10yr_base_eur": float(base["npv_10yr_eur"]),
+        "npv_10yr_best_eur": float(best["npv_10yr_eur"]),
+        "npv_10yr_worst_eur": float(worst["npv_10yr_eur"]),
+        "sensitivity": {
+            "scop_pct": SENS_PCT,
+            "electricity_price_pct": SENS_PCT,
+        }
+    }
 
 
 # -----------------------------
@@ -193,6 +346,62 @@ def what_this_means(verdict: str, confidence: str) -> List[str]:
         bullets.append("Because the result is sensitive, bills-based inputs (or a survey) can reduce uncertainty.")
     return bullets
 
+
+def confidence_score(
+    outcomes_primary: List[str],
+    bills_available: bool,
+    verdict_ber: Optional[str],
+    verdict_bill: Optional[str],
+    pattern: str,
+    wood_use: str,
+    npv_base: Optional[float] = None,
+    npv_best: Optional[float] = None,
+    npv_worst: Optional[float] = None,
+) -> int:
+    """
+    V2: 0–100 confidence score. Simple and explainable.
+    Also ties confidence to 10-year NPV robustness when available.
+    """
+    score = 50
+
+    # Agreement across best/typ/worst outcomes
+    if len(set(outcomes_primary)) == 1:
+        score += 25
+
+    # Bills anchoring
+    if bills_available:
+        score += 15
+
+    # Cross-check alignment bonus/penalty
+    if verdict_ber and verdict_bill:
+        if verdict_ber == verdict_bill:
+            score += 10
+        else:
+            score -= 10
+
+    # Penalize "hard to infer" cases if no bills
+    if (not bills_available) and pattern == "rare":
+        score -= 10
+    if (not bills_available) and wood_use in {"lots"}:
+        score -= 10
+
+    # NPV robustness: if worst-case still positive → more robust, if best-case still negative → less robust
+    if npv_worst is not None and npv_worst > 0:
+        score += 10
+    if npv_best is not None and npv_best < 0:
+        score -= 10
+
+    return int(round(clamp(score, 0, 100)))
+
+
+def label_from_confidence_score(score: int) -> str:
+    if score >= 75:
+        return "high"
+    if score >= 50:
+        return "medium"
+    return "low"
+
+
 # -----------------------------
 # Validation + normalization
 # -----------------------------
@@ -224,6 +433,12 @@ def validate_and_normalize_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
     if emitters not in {"radiators", "ufh"}:
         raise ValueError("emitters must be 'radiators' or 'ufh'.")
     out["emitters"] = emitters
+
+    # V2: flow temperature proxy (optional, default medium for radiators, high for UFH)
+    flow_temp_capability = str(inputs.get("flow_temp_capability", "high" if emitters == "ufh" else "medium")).strip().lower()
+    if flow_temp_capability not in {"low", "medium", "high"}:
+        raise ValueError("flow_temp_capability must be 'low', 'medium', or 'high'.")
+    out["flow_temp_capability"] = flow_temp_capability
 
     pattern = str(_require_key(inputs, "heating_pattern")).strip().lower()
     if pattern not in {"rare", "normal", "high"}:
@@ -296,6 +511,10 @@ def validate_and_normalize_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
         out["annual_fuel_use"] = None
         out["annual_spend_eur"] = None
 
+    # V2: DHW system linkage (optional; default True)
+    dhw_on_same_fuel = bool(inputs.get("dhw_on_same_fuel", True))
+    out["dhw_on_same_fuel"] = dhw_on_same_fuel
+
     return out
 
 
@@ -315,6 +534,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     ber = inputs["ber_band"]
     area = inputs["floor_area_m2"]
     emitters = inputs["emitters"]
+    flow_temp_capability = inputs["flow_temp_capability"]
     pattern = inputs["heating_pattern"]
     wood_use = inputs["wood_use"]
     occupants = inputs["occupants"]
@@ -325,11 +545,12 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     hp_quote = inputs["hp_quote_eur"]
     grant_applied = inputs["grant_applied"]
     grant_value = inputs["grant_value_eur"]
+    dhw_on_same_fuel = inputs["dhw_on_same_fuel"]
 
     capex = max(0.0, hp_quote - (grant_value if grant_applied else 0.0))
 
     # Assumptions
-    scop_rng = emitter_to_scop_range(emitters)
+    scop_rng = adjusted_scop_range(emitters, flow_temp_capability)
     pattern_mult = heating_pattern_multiplier(pattern)
     dhw_band = dhw_band_kwh_th_per_year(occupants)
     ber_intensity = ber_to_space_heat_intensity_kwh_m2_yr(ber)
@@ -338,13 +559,9 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     # -------------------------
     # Path B: BER-based (always available)
     # -------------------------
-    # Space heating basis from BER, then behaviour multiplier
     Qspace_ber = tuple(i * area * pattern_mult for i in ber_intensity)  # (best,typ,worst)
-
-    # Apply wood as an offset to *space heating only* (BER-based path)
     Qspace_ber_after_wood = tuple(max(0.0, q - wood_kwh) for q in Qspace_ber)
 
-    # Total delivered heat basis = space(after wood) + DHW
     Q_total_ber = (
         Qspace_ber_after_wood[0] + dhw_band[0],
         Qspace_ber_after_wood[1] + dhw_band[1],
@@ -353,7 +570,6 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     # Current cost estimate from BER-based heat
     if fuel_type == "kerosene":
-        # litres = (fuel_kWh) / 10 where fuel_kWh = delivered/eff
         litres = tuple((Q_total_ber[i] / boiler_eff) / 10.0 for i in range(3))
         Ccur_ber = tuple(litres[i] * fuel_price for i in range(3))
         fuel_unit = "L"
@@ -392,7 +608,6 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
                 raise ValueError("annual_fuel_use must be >= 0.")
             annual_spend = annual_units * fuel_price
             anchor = {"mode": "annual_fuel_use", "annual_units": annual_units, "annual_spend_eur": None}
-
         else:
             annual_spend = float(inputs["annual_spend_eur"])
             if annual_spend < 0:
@@ -400,17 +615,23 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             annual_units = annual_spend / fuel_price if fuel_price > 0 else 0.0
             anchor = {"mode": "annual_spend", "annual_units": None, "annual_spend_eur": annual_spend}
 
-        # Delivered heat inferred from paid fuel (this already reflects wood/behaviour in reality)
+        # Delivered heat inferred from paid fuel (already reflects real behaviour + secondary heating)
         fuel_kwh = annual_units * kwh_per_unit
         Q_paid_delivered = fuel_kwh * boiler_eff
 
-        # Add DHW band (we assume the paid fuel also covers DHW unless the user used separate systems)
-        # Keep it simple: DHW included in the same total basis (screening).
-        Q_total_bill = (
-            0.85 * Q_paid_delivered + dhw_band[0],
-            1.00 * Q_paid_delivered + dhw_band[1],
-            1.15 * Q_paid_delivered + dhw_band[2],
-        )
+        # V2 fix: Only add DHW if user says DHW is NOT on same system/fuel.
+        if dhw_on_same_fuel:
+            Q_total_bill = (
+                0.85 * Q_paid_delivered,
+                1.00 * Q_paid_delivered,
+                1.15 * Q_paid_delivered,
+            )
+        else:
+            Q_total_bill = (
+                0.85 * Q_paid_delivered + dhw_band[0],
+                1.00 * Q_paid_delivered + dhw_band[1],
+                1.15 * Q_paid_delivered + dhw_band[2],
+            )
 
         # Current cost band around the bill estimate
         Ccur_bill = (0.9 * annual_spend, annual_spend, 1.1 * annual_spend)
@@ -423,40 +644,45 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Verdict + key drivers (verdict-first product layer)
     # -------------------------
 
-    # Pick primary method: bills-based if provided, else BER-based
     if bills_available and savings_bill:
         primary_label = "bills_based"
+        primary_reason = "Bills provided — estimate anchored to real usage."
         savings_primary = savings_bill
         payback_primary = payback_bill
     else:
         primary_label = "ber_based"
+        primary_reason = "Bills not provided — BER-based screening estimate used."
         savings_primary = savings_ber
         payback_primary = payback_ber
 
     outcomes_primary = [outcome_from_savings(s) for s in savings_primary]
     verdict = verdict_from_outcomes(outcomes_primary)
-    confidence = confidence_from_outcomes(outcomes_primary)
 
-    # If bills are available, cross-check against BER-based and adjust confidence
+    # Existing qualitative confidence (kept for continuity; numeric score will drive final label)
+    confidence_band_label = confidence_from_outcomes(outcomes_primary)
+
+    # Cross-check
     consistency = "unknown"
     notes: List[str] = []
+    verdict_ber_for_score: Optional[str] = None
+    verdict_bill_for_score: Optional[str] = None
+
     if bills_available and savings_bill:
         outcomes_ber = [outcome_from_savings(s) for s in savings_ber]
         verdict_ber = verdict_from_outcomes(outcomes_ber)
-
         outcomes_bill = [outcome_from_savings(s) for s in savings_bill]
         verdict_bill = verdict_from_outcomes(outcomes_bill)
 
-        agree = (verdict_ber == verdict_bill)
-        confidence = adjust_confidence(confidence, agree=agree)
+        verdict_ber_for_score = verdict_ber
+        verdict_bill_for_score = verdict_bill
 
+        agree = (verdict_ber == verdict_bill)
         if agree:
             consistency = "aligns"
         else:
             consistency = "diverges"
             notes.append("Bills-based and BER-based estimates disagree; partial heating and secondary heat sources may dominate the real outcome.")
 
-        # Helpful nudges for interpretation
         if wood_use in {"lots"}:
             notes.append("High wood use can make payback uncertain unless wood is displaced by the heat pump.")
         if pattern == "rare":
@@ -465,9 +691,46 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
         consistency = "unknown"
         notes.append("Bills not provided; BER-based method used as the primary estimate.")
 
-    # Typical figures (based on primary method)
+    # Typical figures (primary method)
     typ_savings = float(savings_primary[1])
     typ_payback = float(payback_primary[1]) if payback_primary else math.inf
+
+    # Primary method typical costs and heat (needed for 10yr + sensitivity)
+    if primary_label == "bills_based" and bills_available and Q_total_bill and Ccur_bill and Chp_bill:
+        Q_typ = float(Q_total_bill[1])
+        Ccur_typ = float(Ccur_bill[1])
+        Chp_typ = float(Chp_bill[1])
+    else:
+        Q_typ = float(Q_total_ber[1])
+        Ccur_typ = float(Ccur_ber[1])
+        Chp_typ = float(Chp_ber[1])
+
+    financials_10yr = build_10yr_financials(
+        capex=capex,
+        current_cost_typ=Ccur_typ,
+        hp_cost_typ=Chp_typ,
+    )
+    sens = npv_sensitivity_band(
+        capex=capex,
+        Q_typ_kwh_th=Q_typ,
+        scop_typ=float(scop_rng[1]),
+        elec_price=float(elec_price),
+        current_cost_typ=Ccur_typ,
+    )
+
+    # V2 numeric confidence score (includes NPV robustness)
+    score = confidence_score(
+        outcomes_primary=outcomes_primary,
+        bills_available=bills_available,
+        verdict_ber=verdict_ber_for_score,
+        verdict_bill=verdict_bill_for_score,
+        pattern=pattern,
+        wood_use=wood_use,
+        npv_base=sens.get("npv_10yr_base_eur"),
+        npv_best=sens.get("npv_10yr_best_eur"),
+        npv_worst=sens.get("npv_10yr_worst_eur"),
+    )
+    confidence = label_from_confidence_score(score)
 
     # Key drivers (short, human-readable)
     key_drivers: List[str] = []
@@ -486,7 +749,13 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             key_drivers.append("electricity higher than oil-delivered cost")
 
     if emitters == "radiators":
-        key_drivers.append("radiator system lowers seasonal COP vs UFH")
+        if flow_temp_capability == "low":
+            key_drivers.append("radiator setup likely needs higher flow temperatures (lower efficiency)")
+        elif flow_temp_capability == "high":
+            key_drivers.append("radiator setup likely supports lower flow temperatures (higher efficiency)")
+        else:
+            key_drivers.append("radiator system lowers seasonal COP vs UFH")
+
     if pattern == "rare":
         key_drivers.append("heating rarely on reduces potential savings")
     if grant_applied:
@@ -497,6 +766,8 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
         key_drivers.append("higher BER reduces heat demand (can reduce savings potential)")
     if wood_use in {"some","lots"} and not bills_available:
         key_drivers.append("wood heating assumed to offset space heat in BER-based estimate")
+    if bills_available and (not dhw_on_same_fuel):
+        key_drivers.append("hot water assumed separate from space-heating fuel (adds DHW allowance)")
 
     # Decision text blocks (the "product")
     verdict_text = VERDICT_TEXT[verdict]
@@ -535,7 +806,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Build report
     report: Dict[str, Any] = {
         "meta": {
-            "tool_version": "engine_v1",
+            "tool_version": "engine_v2",
             "currency": "EUR",
             "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         },
@@ -543,6 +814,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "ber_band": ber,
             "floor_area_m2": area,
             "emitters": emitters,
+            "flow_temp_capability": flow_temp_capability,
             "heating_pattern": pattern,
             "wood_use": wood_use,
             "occupants": occupants,
@@ -556,6 +828,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "grant_value_eur": grant_value if grant_applied else 0.0,
             "hp_capex_eur": capex,
             "bill_mode": bill_mode,
+            "dhw_on_same_fuel": dhw_on_same_fuel,
         },
         "assumptions": {
             "oil_kwh_per_litre": 10.0,
@@ -565,10 +838,20 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "ber_space_heat_intensity_kwh_th_per_m2_band": list(ber_intensity),
             "heating_pattern_multiplier": pattern_mult,
             "wood_offset_kwh_th_per_year": wood_kwh if bill_mode == "none" else 0.0,
+            "financial_model": {
+                "horizon_years": HORIZON_YEARS,
+                "fuel_escalation": FUEL_ESCALATION,
+                "electricity_escalation": ELEC_ESCALATION,
+                "discount_rate": DISCOUNT_RATE,
+                "maintenance_current_eur_per_yr": MAINTENANCE_CURRENT_EUR_PER_YR,
+                "maintenance_hp_eur_per_yr": MAINTENANCE_HP_EUR_PER_YR,
+                "sensitivity_pct": SENS_PCT,
+            },
             "notes": [
                 "This is a screening model using annual energy balance and uncertainty bands.",
-                "BER-based method uses standardised assumptions adjusted by a simple heating-pattern slider.",
+                "Best/typical/worst reflect uncertainty in heat demand and seasonal performance (SCOP).",
                 "Bills-based method anchors to annual spend/use (preferred when available).",
+                "10-year financial projection applies explicit escalation and discounting assumptions.",
             ],
         },
         "results": {
@@ -600,22 +883,38 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
                 "anchor": anchor,
             },
         },
-        
-"decision": {
-    "primary_method": primary_label,
-    "verdict": verdict,
-    "verdict_text": verdict_text,
-    "confidence_level": confidence,
-    "confidence_text": confidence_text,
-    "what_this_means": decision_summary,
-    "typical_savings_eur": float(typ_savings),
-    "typical_payback_years": to_payback_or_none(float(typ_payback)),
-    "key_drivers": key_drivers,
-},
-"cross_check": {
-    "consistency": consistency,
-    "notes": notes,
-},
+        "decision": {
+            "primary_method": primary_label,
+            "primary_method_reason": primary_reason,
+
+            "verdict": verdict,
+            "verdict_text": verdict_text,
+
+            "confidence_level": confidence,
+            "confidence_score_0_100": score,
+            "confidence_text": confidence_text,
+
+            "what_this_means": decision_summary,
+
+            "typical_savings_eur": float(typ_savings),
+            "typical_payback_years": to_payback_or_none(float(typ_payback)),
+
+            "npv_10yr_eur": float(financials_10yr["npv_10yr_eur"]),
+            "break_even_year": financials_10yr["break_even_year"],
+
+            "key_drivers": key_drivers,
+        },
+        "financial_projection": {
+            "cashflow_10yr": financials_10yr["cashflow_10yr"],
+            "npv_10yr_eur": financials_10yr["npv_10yr_eur"],
+            "break_even_year": financials_10yr["break_even_year"],
+            "assumptions": financials_10yr["assumptions"],
+            "npv_sensitivity": sens,
+        },
+        "cross_check": {
+            "consistency": consistency,
+            "notes": notes,
+        },
         "recommendations": recommendations,
         "disclaimer": "Screening estimate only. Not a substitute for a detailed design survey.",
     }

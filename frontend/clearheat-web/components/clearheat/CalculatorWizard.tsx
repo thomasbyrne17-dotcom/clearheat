@@ -28,49 +28,38 @@ function gaEvent(name: string, params: Record<string, any> = {}) {
   window.gtag?.("event", name, params);
 }
 
-/* ================================
-   Backend
-================================ */
-
-const BACKEND_BASE =
-  process.env.NEXT_PUBLIC_BACKEND_BASE ?? "http://127.0.0.1:8000";
-
 export default function CalculatorWizard() {
   const [step, setStep] = useState<0 | 1 | 2>(0);
-  const [reportReady, setReportReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastInputs, setLastInputs] = useState<ClearHeatInput | null>(null);
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  // Old Stripe return params (kept so old links don’t explode, but no longer used)
   const sessionId = searchParams.get("session_id");
   const success = searchParams.get("success") === "1";
 
-  // Optional: auto-scroll the user back to the download area after payment
   useEffect(() => {
     if (success && sessionId) {
-      localStorage.setItem("ch_session_id", sessionId);
-
-      gaEvent("stripe_return_success", { page_path: "/calculator" });
-
-      setStep(2);
-      setReportReady(true);
+      gaEvent("stripe_return_success_legacy", { page_path: "/calculator" });
+      // Don’t do anything else. Flow is now: Generate -> Interstitial -> Stripe
+      router.replace("/calculator");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [success, sessionId]);
-
-
-  const paidSessionId =
-    sessionId ||
-    (typeof window !== "undefined" ? localStorage.getItem("ch_session_id") : null);
-
-  const isPaid = !!paidSessionId;
 
   const form = useForm<ClearHeatInput>({
     resolver: zodResolver(clearHeatSchema) as any,
     defaultValues: {
       ber_band: "C",
       floor_area_m2: 120,
+
       emitters: "radiators",
+
+      // V2: new fields
+      flow_temp_capability: "medium",
+      dhw_on_same_fuel: true,
 
       heating_pattern: "normal",
       wood_use: "none",
@@ -85,7 +74,6 @@ export default function CalculatorWizard() {
       grant_applied: true,
       grant_value_eur: 6500,
 
-      // IMPORTANT: must match your schema union
       bill_mode: "annual_spend",
       annual_spend_eur: 2400,
     },
@@ -106,7 +94,7 @@ export default function CalculatorWizard() {
     });
   }
 
-  async function runModel(values: ClearHeatInput) {
+  async function generateAndGoToPreview(values: ClearHeatInput) {
     setLoading(true);
     setLastInputs(values);
     localStorage.setItem("ch_last_inputs", JSON.stringify(values));
@@ -117,24 +105,34 @@ export default function CalculatorWizard() {
       fuel_type: values.fuel_type,
       bill_mode: values.bill_mode,
       grant_applied: values.grant_applied,
+      emitters: values.emitters,
+      flow_temp_capability: (values as any).flow_temp_capability,
+      dhw_on_same_fuel: (values as any).dhw_on_same_fuel,
     });
 
     try {
-      const res = await fetch("/api/run", {
+      // NEW: generate reportId (backend builds analysis + pdf and stores temporarily)
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inputs: values }),
       });
 
-      if (!res.ok) throw new Error("Evaluation failed");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Report generation failed");
+      }
 
-      await res.json();
-
-      setReportReady(true); // ONLY unlocks download
+      const { reportId, verdictClass } = await res.json();
 
       gaEvent("report_generate_success", {
         page_path: "/calculator",
+        report_id: reportId,
+        verdict_class: verdictClass,
       });
+
+      // Redirect to interstitial
+      router.push(`/report-preview?reportId=${reportId}`);
     } catch (e: any) {
       gaEvent("report_generate_error", {
         page_path: "/calculator",
@@ -146,80 +144,6 @@ export default function CalculatorWizard() {
       setLoading(false);
     }
   }
-
-    
-    async function downloadPdf() {
-      const inputs: ClearHeatInput | null =
-        lastInputs ??
-        (() => {
-          const raw = localStorage.getItem("ch_last_inputs");
-          if (!raw) return null;
-          try {
-            return JSON.parse(raw) as ClearHeatInput;
-          } catch {
-            return null;
-          }
-        })();
-
-      if (!inputs) {
-        alert("Please generate the report first.");
-        return;
-      }
-
-      gaEvent("report_download_click", { page_path: "/calculator" });
-
-      try {
-      // If not paid yet, start Stripe Checkout
-      if (!paidSessionId) {
-        const r = await fetch("/api/stripe/create-checkout-session", {
-          method: "POST",
-        });
-
-        if (!r.ok) throw new Error("Failed to start checkout");
-
-        const data = await r.json();
-        if (!data?.url) throw new Error("Stripe checkout URL missing");
-
-        window.location.href = data.url;
-        return;
-      }
-
-      // Paid: fetch the PDF via Next.js API (server verifies Stripe + calls backend with secret header)
-      const res = await fetch("/api/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: paidSessionId, inputs }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`PDF download failed: ${text}`);
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "clearheat_report.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      gaEvent("report_download_success", { page_path: "/calculator" });
-
-      // Clean URL so refresh doesn't reuse an old session_id
-      router.replace("/calculator");
-    } catch (e: any) {
-      gaEvent("report_download_error", {
-        page_path: "/calculator",
-        error_message: String(e?.message ?? "unknown_error").slice(0, 120),
-      });
-
-      alert(e?.message ?? "Error downloading PDF");
-    }
-  }
-
 
   return (
     <Card>
@@ -248,20 +172,14 @@ export default function CalculatorWizard() {
           {step < 2 ? (
             <Button onClick={() => goToStep((step + 1) as any)}>Next</Button>
           ) : (
-            <Button onClick={form.handleSubmit(runModel)} disabled={loading}>
+            <Button
+              onClick={form.handleSubmit(generateAndGoToPreview)}
+              disabled={loading}
+            >
               {loading ? "Generating…" : "Generate report"}
             </Button>
           )}
         </div>
-
-        {reportReady && (
-          <div className="pt-6 border-t text-center">
-            <Button onClick={downloadPdf}>
-              {isPaid ? "Download Report" : "Pay & Download Report"}
-            </Button>
-
-          </div>
-        )}
       </CardContent>
     </Card>
   );

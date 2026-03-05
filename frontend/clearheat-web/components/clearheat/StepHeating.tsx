@@ -25,14 +25,15 @@ export default function StepHeating({
 
   return (
     <div className="grid gap-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="grid gap-2">
+      {/* Row 1: 2 cols on desktop, 1 col on mobile */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Fuel type</Label>
           <Select
             value={watch("fuel_type")}
             onValueChange={(v) => setValue("fuel_type", v as any)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -42,9 +43,10 @@ export default function StepHeating({
           </Select>
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Fuel price (Kerosene-€/L, Gas-€/kWh)</Label>
           <Input
+            className="w-full"
             type="number"
             step="0.01"
             {...register("fuel_price_eur_per_unit")}
@@ -57,10 +59,12 @@ export default function StepHeating({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="grid gap-2">
+      {/* Row 2: 3 cols on desktop, 1 col on mobile */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid gap-2 min-w-0">
           <Label>Electricity price (€/kWh)</Label>
           <Input
+            className="w-full"
             type="number"
             step="0.01"
             {...register("electricity_price_eur_per_kwh")}
@@ -72,9 +76,14 @@ export default function StepHeating({
           )}
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Boiler efficiency</Label>
-          <Input type="number" step="0.01" {...register("boiler_efficiency")} />
+          <Input
+            className="w-full"
+            type="number"
+            step="0.01"
+            {...register("boiler_efficiency")}
+          />
           {formState.errors.boiler_efficiency?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.boiler_efficiency.message)}
@@ -82,13 +91,13 @@ export default function StepHeating({
           )}
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Bill input mode</Label>
           <Select
             value={billMode}
             onValueChange={(v) => setValue("bill_mode", v as any)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -102,13 +111,13 @@ export default function StepHeating({
 
       {/* V2: DHW linkage toggle (only relevant when bills are used) */}
       {billMode !== "none" && (
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Does this bill include hot water?</Label>
           <Select
-            value={dhwSameFuel === false ? "no" : "yes"} // default to "yes" if undefined
+            value={dhwSameFuel === false ? "no" : "yes"}
             onValueChange={(v) => setValue("dhw_on_same_fuel", v === "yes")}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
@@ -123,9 +132,14 @@ export default function StepHeating({
       )}
 
       {billMode === "annual_spend" && (
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Annual spend (€) (Include wood spend if used)</Label>
-          <Input type="number" step="1" {...register("annual_spend_eur")} />
+          <Input
+            className="w-full"
+            type="number"
+            step="1"
+            {...register("annual_spend_eur")}
+          />
           {formState.errors.annual_spend_eur?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.annual_spend_eur.message)}
@@ -135,9 +149,14 @@ export default function StepHeating({
       )}
 
       {billMode === "annual_fuel_use" && (
-        <div className="grid gap-2">
+        <div className="grid gap-2 min-w-0">
           <Label>Annual fuel use (Kerosene-Litres, Gas-kWh)</Label>
-          <Input type="number" step="1" {...register("annual_fuel_use")} />
+          <Input
+            className="w-full"
+            type="number"
+            step="1"
+            {...register("annual_fuel_use")}
+          />
           {formState.errors.annual_fuel_use?.message && (
             <p className="text-sm text-destructive">
               {String(formState.errors.annual_fuel_use.message)}

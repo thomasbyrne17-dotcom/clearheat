@@ -75,8 +75,8 @@ export default function StepHeatPump({
             value={flowTemp ?? "medium"}
             onValueChange={(v) => setValue("flow_temp_capability", v as any)}
           >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select" />
+            <SelectTrigger className="w-full min-w-0 overflow-hidden">
+              <SelectValue className="truncate" placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="high">

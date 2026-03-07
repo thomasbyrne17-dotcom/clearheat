@@ -24,8 +24,8 @@ type PreviewData = {
   headline?: string;
   confidence?: string;
   context?: string;
-  grossQuoteEur?: number | null; // hp_quote_eur
-  netCapexEur?: number | null;   // hp_capex_eur (after grant)
+  grossQuoteEur?: number | null;
+  netCapexEur?: number | null;
 };
 
 function formatEUR(n: number) {
@@ -78,7 +78,6 @@ export default function ReportPreviewPage() {
 
   const isPaidReturn = success && !!sessionId;
 
-  // Persist session id per report so refresh still allows download
   useEffect(() => {
     if (isPaidReturn && reportId && sessionId) {
       localStorage.setItem(`ch_paid_session_${reportId}`, sessionId);
@@ -183,12 +182,6 @@ export default function ReportPreviewPage() {
     } catch (e: any) {
       const msg = e?.message ?? "Error starting checkout";
       setError(msg);
-
-      gaEvent("interstitial_cta_error", {
-        page_path: "/report-preview",
-        report_id: reportId,
-        error_message: String(msg).slice(0, 120),
-      });
     } finally {
       setCtaLoading(false);
     }
@@ -196,11 +189,6 @@ export default function ReportPreviewPage() {
 
   const onDownloadClick = async () => {
     if (!reportId || !effectiveSessionId || downloadLoading) return;
-
-    gaEvent("report_download_click", {
-      page_path: "/report-preview",
-      report_id: reportId,
-    });
 
     try {
       setDownloadLoading(true);
@@ -229,21 +217,9 @@ export default function ReportPreviewPage() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      gaEvent("report_download_success", {
-        page_path: "/report-preview",
-        report_id: reportId,
-      });
-
       router.replace(`/report-preview?reportId=${encodeURIComponent(reportId)}`);
     } catch (e: any) {
-      const msg = e?.message ?? "Error downloading PDF";
-      setError(msg);
-
-      gaEvent("report_download_error", {
-        page_path: "/report-preview",
-        report_id: reportId,
-        error_message: String(msg).slice(0, 120),
-      });
+      setError(e?.message ?? "Error downloading PDF");
     } finally {
       setDownloadLoading(false);
     }
@@ -288,132 +264,112 @@ export default function ReportPreviewPage() {
         </CardHeader>
 
         <CardContent className="space-y-8">
-          {loading && <div className="text-sm">Loading…</div>}
 
-          {!loading && error && (
+          {/* Finding */}
+          <section className="rounded-xl border p-6">
             <div className="space-y-3">
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
+              <div className="text-xs font-medium tracking-wide text-muted-foreground">
+                FINDING
               </div>
-              <Button variant="secondary" onClick={() => router.push("/calculator")}>
-                Back to Calculator
-              </Button>
+
+              <div className="text-2xl font-semibold">{verdictHeadline}</div>
+
+              {confidence && (
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Confidence: </span>
+                  {confidence}
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">{context}</p>
             </div>
-          )}
+          </section>
 
-          {!loading && !error && (
-            <>
-              {/* Finding */}
-              <section className="rounded-xl border p-6">
-                <div className="space-y-3">
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground">
-                    FINDING
-                  </div>
-
-                  <div className="text-2xl font-semibold">{verdictHeadline}</div>
-
-                  {confidence && (
-                    <div className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">Confidence: </span>
-                      {confidence}
-                    </div>
-                  )}
-
-                  <p className="text-sm text-muted-foreground">{context}</p>
-
-                  {canceled && (
-                    <div className="pt-2 text-sm">
-                      Checkout canceled. You can unlock the full report anytime.
-                    </div>
-                  )}
-
-                  {isPaidReturn && (
-                    <div className="pt-2 text-sm">
-                      Payment confirmed. Download your report below.
-                    </div>
-                  )}
+          {/* What’s inside */}
+          <section className="space-y-3">
+            <div className="text-sm font-medium">What’s inside the full report</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                "20-year cost comparison vs your current fuel",
+                "Grant-adjusted payback timeline",
+                "Sensitivity analysis (electricity price ±15%)",
+                "Fuel & electricity price escalation assumptions",
+                "Risk assessment summary (what can flip the outcome)",
+                "Assumptions and methodology transparency",
+              ].map((t) => (
+                <div key={t} className="rounded-lg border p-3 text-sm">
+                  {t}
                 </div>
-              </section>
+              ))}
+            </div>
+          </section>
 
-              {/* What’s inside */}
-              <section className="space-y-3">
-                <div className="text-sm font-medium">What’s inside the full report</div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    "20-year cost comparison vs your current fuel",
-                    "Grant-adjusted payback timeline",
-                    "Sensitivity analysis (electricity price ±15%)",
-                    "Fuel & electricity price escalation assumptions",
-                    "Risk assessment summary (what can flip the outcome)",
-                    "Assumptions and methodology transparency",
-                  ].map((t) => (
-                    <div key={t} className="rounded-lg border p-3 text-sm">
-                      {t}
-                    </div>
-                  ))}
-                </div>
-              </section>
+          {/* Authority + refund guarantee */}
+          <section className="rounded-xl border p-6 space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Built using engineering-grade energy modelling assumptions
+              specific to Irish housing and SEAI grant structures.
+            </div>
 
-              {/* Authority + risk reversal */}
-              <section className="rounded-xl border p-6 space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Built using engineering-grade energy modelling assumptions
-                  specific to Irish housing and SEAI grant structures.
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  If your report isn’t useful, email within 7 days for a full refund.
-                </div>
-              </section>
+            {/* REFUND HIGHLIGHT */}
+            <div className="text-center">
+              7-day refund guarantee if you're not happy with your report - just email us.
+            </div>
+          </section>
 
-              {/* Price anchor */}
-              <section className="text-center space-y-2">
-                <div className="text-sm text-muted-foreground">
-                  The full report is available for €29.
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  €29 to evaluate a {priceAnchor ?? "major"} decision.
-                </div>
-              </section>
+          {/* Price anchor */}
+          <section className="text-center space-y-2">
+            <div className="text-sm text-muted-foreground">
+              The full report is available for €29.
+            </div>
+            <div className="text-sm text-muted-foreground">
+              €29 to evaluate a {priceAnchor ?? "major"} decision.
+            </div>
+          </section>
 
-              {/* CTA */}
-              <section className="space-y-3 pt-2">
-                {effectiveSessionId ? (
-                  <Button
-                    className="w-full"
-                    onClick={onDownloadClick}
-                    disabled={downloadLoading || ctaLoading}
-                  >
-                    {downloadLoading ? "Downloading…" : "Download Report"}
-                  </Button>
-                ) : (
-                  <Button
-                    className="w-full"
-                    onClick={onUnlockClick}
-                    disabled={ctaLoading}
-                  >
-                    {ctaLoading ? "Redirecting…" : "Unlock My Full Financial Verdict — €29"}
-                  </Button>
-                )}
+          {/* SOCIAL PROOF */}
+          <section className="text-center">
+            <div className="text-sm font-medium">
+              🏠 119 Irish homeowners completed the ClearHeat analysis in the last 30 days.
+            </div>
+          </section>
 
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => router.push("/calculator")}
-                  disabled={ctaLoading || downloadLoading}
-                >
-                  Back
-                </Button>
-              </section>
+          {/* CTA */}
+          <section className="space-y-3 pt-2">
+            {effectiveSessionId ? (
+              <Button
+                className="w-full"
+                onClick={onDownloadClick}
+                disabled={downloadLoading || ctaLoading}
+              >
+                {downloadLoading ? "Downloading…" : "Download Report"}
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={onUnlockClick}
+                disabled={ctaLoading}
+              >
+                {ctaLoading ? "Redirecting…" : "Unlock Full Report — €29"}
+              </Button>
+            )}
 
-              {/* Footer note */}
-              <section className="pt-2">
-                <div className="text-xs text-muted-foreground">
-                  Screening estimate only. Not a substitute for a detailed design
-                  survey.
-                </div>
-              </section>
-            </>
-          )}
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => router.push("/calculator")}
+              disabled={ctaLoading || downloadLoading}
+            >
+              Back
+            </Button>
+          </section>
+
+          <section className="pt-2">
+            <div className="text-xs text-muted-foreground">
+              Screening estimate only. Not a substitute for a detailed design survey.
+            </div>
+          </section>
+
         </CardContent>
       </Card>
     </main>

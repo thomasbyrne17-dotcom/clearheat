@@ -10,9 +10,18 @@ export default function HomePage() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <Logo />
-        <Link href="/calculator">
-          <Button size="sm">Get Verdict</Button>
-        </Link>
+
+        <div className="flex items-center gap-3">
+          <Link href="/guides">
+            <Button variant="ghost" size="sm">
+              Guides
+            </Button>
+          </Link>
+
+          <Link href="/calculator">
+            <Button size="sm">Get Verdict</Button>
+          </Link>
+        </div>
       </header>
 
       {/* Hero */}
@@ -64,7 +73,6 @@ export default function HomePage() {
             </h2>
           </div>
 
-          {/* UPDATED: V2 contents (clean list) */}
           <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5">
             <li>
               <span className="text-foreground font-medium">

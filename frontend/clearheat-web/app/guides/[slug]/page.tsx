@@ -1,7 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 
-const articles: Record<string, { title: string; content: JSX.Element }> = {
+const articles: Record<string, { title: string; content: ReactNode }> = {
   "do-heat-pumps-save-money": {
     title: "Do Heat Pumps Actually Save Money in Ireland?",
     content: (

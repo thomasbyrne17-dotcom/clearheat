@@ -67,7 +67,8 @@ export const clearHeatSchema = z
     fuel_type: z.enum(["gas", "kerosene"]),
     fuel_price_eur_per_unit: num(0, 10),
     electricity_price_eur_per_kwh: num(0, 10),
-    boiler_efficiency: z.preprocess(asNumber, z.number().min(0.3).max(1)),
+    // Replaces boiler_efficiency — converted to efficiency value before sending to engine
+    boiler_age: z.enum(["pre_1980", "1980s", "1990s", "2000s", "2010s", "2020s"]),
 
     hp_quote_eur: num(0, 200000),
     grant_applied: bool,
@@ -99,3 +100,22 @@ export const clearHeatSchema = z
   });
 
 export type ClearHeatInput = z.infer<typeof clearHeatSchema>;
+
+// Maps boiler age bracket to efficiency value sent to the engine
+export const BOILER_AGE_TO_EFFICIENCY: Record<string, number> = {
+  pre_1980: 0.65,
+  "1980s":  0.72,
+  "1990s":  0.78,
+  "2000s":  0.84,
+  "2010s":  0.90,
+  "2020s":  0.93,
+};
+
+export const BOILER_AGE_OPTIONS = [
+  { value: "pre_1980", label: "Before 1980" },
+  { value: "1980s",    label: "1980s" },
+  { value: "1990s",    label: "1990s" },
+  { value: "2000s",    label: "2000s" },
+  { value: "2010s",    label: "2010s" },
+  { value: "2020s",    label: "2020 or newer" },
+];

@@ -28,8 +28,29 @@ const bool = z.preprocess((v) => {
   return v;
 }, z.boolean());
 
+export const IRISH_COUNTIES = [
+  "Carlow", "Cavan", "Clare", "Cork", "Donegal", "Dublin", "Galway",
+  "Kerry", "Kildare", "Kilkenny", "Laois", "Leitrim", "Limerick",
+  "Longford", "Louth", "Mayo", "Meath", "Monaghan", "Offaly",
+  "Roscommon", "Sligo", "Tipperary", "Waterford", "Westmeath",
+  "Wexford", "Wicklow",
+] as const;
+
+export type IrishCounty = typeof IRISH_COUNTIES[number];
+
+export const HOUSE_TYPES = [
+  { value: "detached", label: "Detached" },
+  { value: "semi_d", label: "Semi-detached" },
+  { value: "terrace", label: "Terraced" },
+  { value: "apartment", label: "Apartment" },
+] as const;
+
 export const clearHeatSchema = z
   .object({
+    // Lead qualification fields (not used by engine)
+    county: z.enum(IRISH_COUNTIES).optional(),
+    house_type: z.enum(["detached", "semi_d", "terrace", "apartment"]).optional(),
+
     ber_band: z.enum(["A", "B", "C", "D", "E", "F", "G"]),
 
     floor_area_m2: num(20, 1000),

@@ -2,6 +2,7 @@
 
 import type { UseFormReturn } from "react-hook-form";
 import type { ClearHeatInput } from "@/lib/schema";
+import { IRISH_COUNTIES, HOUSE_TYPES } from "@/lib/schema";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,45 @@ export default function StepHome({ form }: { form: UseFormReturn<ClearHeatInput>
 
   return (
     <div className="grid gap-4">
+
+      {/* County + House type */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>County</Label>
+          <Select
+            value={watch("county") ?? ""}
+            onValueChange={(v) => setValue("county", v as any)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select county" />
+            </SelectTrigger>
+            <SelectContent>
+              {IRISH_COUNTIES.map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>House type</Label>
+          <Select
+            value={watch("house_type") ?? ""}
+            onValueChange={(v) => setValue("house_type", v as any)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              {HOUSE_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* BER + Floor area */}
       <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label>BER band</Label>
@@ -30,9 +70,7 @@ export default function StepHome({ form }: { form: UseFormReturn<ClearHeatInput>
             </SelectTrigger>
             <SelectContent>
               {["A", "B", "C", "D", "E", "F", "G"].map((b) => (
-                <SelectItem key={b} value={b}>
-                  {b}
-                </SelectItem>
+                <SelectItem key={b} value={b}>{b}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -49,6 +87,7 @@ export default function StepHome({ form }: { form: UseFormReturn<ClearHeatInput>
         </div>
       </div>
 
+      {/* Occupants + Heating pattern + Wood use */}
       <div className="grid grid-cols-3 gap-4">
         <div className="grid gap-2">
           <Label>Occupants</Label>
@@ -94,6 +133,7 @@ export default function StepHome({ form }: { form: UseFormReturn<ClearHeatInput>
           </Select>
         </div>
       </div>
+
     </div>
   );
 }

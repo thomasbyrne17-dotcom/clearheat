@@ -88,6 +88,10 @@ class Calculation(Base):
     payback_years_typical = Column(Float, nullable=True)
     npv_typical_eur = Column(Float, nullable=True)
 
+    # Email follow-up (optional — set when homeowner requests PDF by email)
+    subscriber_email = Column(String, nullable=True)
+    report_emailed_at = Column(DateTime(timezone=True), nullable=True)
+
 
 # ---------------------------------------------------------------------------
 # Layer 2: Lead record (PII — only created with explicit consent)

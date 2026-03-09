@@ -42,6 +42,10 @@ type LeadForm = {
   consent_installer_contact: boolean;
 };
 
+type EmailForm = {
+  email: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -112,6 +116,12 @@ export default function ReportPreviewPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [downloadLoading, setDownloadLoading] = useState(false);
+
+  // Email report state
+  const [emailForm, setEmailForm] = useState<EmailForm>({ email: "" });
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadSubmitting, setLeadSubmitting] = useState(false);
@@ -202,6 +212,41 @@ export default function ReportPreviewPage() {
       setError(e?.message ?? "Error downloading PDF");
     } finally {
       setDownloadLoading(false);
+    }
+  };
+
+  const onEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportId || emailSubmitting || !emailForm.email) return;
+
+    gaEvent("report_email_submit", {
+      report_id: reportId,
+      verdict_class: data?.verdictClass ?? undefined,
+    });
+
+    try {
+      setEmailSubmitting(true);
+      setEmailError(null);
+
+      const res = await fetch("/api/email-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          calculation_id: reportId,
+          email: emailForm.email,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to send email");
+      }
+
+      setEmailSent(true);
+    } catch (e: any) {
+      setEmailError(e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setEmailSubmitting(false);
     }
   };
 
@@ -350,6 +395,33 @@ export default function ReportPreviewPage() {
             <p className="text-xs text-center text-muted-foreground">
               Independent screening estimate — not affiliated with installers or manufacturers.
             </p>
+          </section>
+
+          {/* Email report */}
+          <section className="rounded-xl border p-4 space-y-3">
+            <div className="text-sm font-medium">Email me a copy</div>
+            {emailSent ? (
+              <p className="text-sm text-green-700">
+                Report sent — check your inbox. If you found it useful, we'd really appreciate a Google review.
+              </p>
+            ) : (
+              <form onSubmit={onEmailSubmit} className="flex gap-2">
+                <Input
+                  type="email"
+                  required
+                  placeholder="your@email.com"
+                  value={emailForm.email}
+                  onChange={(e) => setEmailForm({ email: e.target.value })}
+                  className="flex-1"
+                />
+                <Button type="submit" variant="secondary" disabled={emailSubmitting}>
+                  {emailSubmitting ? "Sending…" : "Send"}
+                </Button>
+              </form>
+            )}
+            {emailError && (
+              <p className="text-xs text-destructive">{emailError}</p>
+            )}
           </section>
 
         </CardContent>

@@ -143,6 +143,11 @@ class AnalysisRequest(BaseModel):
     inputs: Dict[str, Any]
 
 
+class EmailReportRequest(BaseModel):
+    calculation_id: str
+    email: str
+
+
 class LeadRequest(BaseModel):
     calculation_id: str
     name: str
@@ -294,6 +299,100 @@ def report_pdf(report_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=clearheat_report.pdf"},
     )
+
+
+GOOGLE_REVIEW_URL = os.getenv("GOOGLE_REVIEW_URL", "")
+
+
+@app.post("/email-report")
+def email_report(req: EmailReportRequest, db: Session = Depends(get_db)):
+    """
+    Emails the PDF report to the homeowner.
+    Stores their email on the calculation record and sends a review request.
+    """
+    _cleanup_store()
+
+    rec = REPORT_STORE.get(req.calculation_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Report not found or expired.")
+
+    pdf_bytes = rec["pdf_bytes"]
+    verdict_class = rec.get("verdict_class")
+
+    # Store email on calculation record
+    calc = db.query(Calculation).filter(Calculation.id == req.calculation_id).first()
+    if calc:
+        calc.subscriber_email = req.email
+        calc.report_emailed_at = datetime.now(timezone.utc)
+        db.commit()
+
+    _send_report_email(req.email, req.calculation_id, pdf_bytes, verdict_class)
+
+    return {"success": True}
+
+
+def _send_report_email(email: str, report_id: str, pdf_bytes: bytes, verdict_class: Optional[str]) -> None:
+    """Sends the PDF report to the homeowner with a review request. Fails silently."""
+    if not RESEND_API_KEY:
+        return
+
+    try:
+        import base64
+
+        review_section = ""
+        if GOOGLE_REVIEW_URL:
+            review_section = f"""
+<p style="margin-top:24px;padding:16px;background:#f9f9f9;border-radius:8px;font-size:14px;">
+  <strong>Found this useful?</strong><br>
+  A quick Google review helps other Irish homeowners find independent advice before committing to a heat pump.<br>
+  <a href="{GOOGLE_REVIEW_URL}" style="color:#16a34a;">Leave a review →</a>
+</p>
+"""
+
+        verdict_labels = {
+            "likely_saves": "Likely to Save",
+            "borderline": "Borderline",
+            "unlikely_saves": "Unlikely to Save",
+        }
+        verdict_label = verdict_labels.get(verdict_class or "", "Complete")
+
+        html_body = f"""
+<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#111;">
+  <h2 style="font-size:20px;">Your ClearHeat Report</h2>
+
+  <p>Your heat pump financial analysis is attached. Verdict: <strong>{verdict_label}</strong>.</p>
+
+  <p style="font-size:14px;color:#555;">
+    This is an independent screening estimate based on the inputs you provided.
+    It is not a substitute for a detailed design survey by a qualified installer.
+  </p>
+
+  {review_section}
+
+  <p style="margin-top:32px;font-size:12px;color:#888;">
+    ClearHeat — Independent heat pump financial screening for Irish homeowners.<br>
+    Not affiliated with any installer or manufacturer.
+  </p>
+</div>
+"""
+
+        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+
+        resend.Emails.send({
+            "from": CLEARHEAT_FROM_EMAIL or "noreply@clearheat.ie",
+            "to": email,
+            "subject": f"Your ClearHeat Report — {verdict_label}",
+            "html": html_body,
+            "attachments": [
+                {
+                    "filename": "clearheat_report.pdf",
+                    "content": pdf_b64,
+                }
+            ],
+        })
+
+    except Exception as e:
+        print(f"Warning: report email failed: {e}")
 
 
 @app.post("/leads")

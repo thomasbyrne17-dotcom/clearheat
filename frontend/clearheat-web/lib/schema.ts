@@ -70,7 +70,7 @@ export const clearHeatSchema = z
     // Replaces boiler_efficiency — converted to efficiency value before sending to engine
     boiler_age: z.enum(["pre_1980", "1980s", "1990s", "2000s", "2010s", "2020s"]),
 
-    hp_quote_eur: num(0, 200000),
+    hp_quote_eur: numOpt(0, 200000),
     grant_applied: bool,
     grant_value_eur: num(0, 50000),
 

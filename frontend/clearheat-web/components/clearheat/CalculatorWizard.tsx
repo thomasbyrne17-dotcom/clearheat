@@ -32,7 +32,7 @@ function gaEvent(name: string, params: Record<string, any> = {}) {
 const STEP_FIELDS: Record<number, (keyof ClearHeatInput)[]> = {
   0: ["ber_band", "floor_area_m2", "occupants", "heating_pattern", "wood_use"],
   1: ["fuel_type", "fuel_price_eur_per_unit", "electricity_price_eur_per_kwh", "boiler_age", "bill_mode", "annual_spend_eur", "annual_fuel_use"],
-  2: ["emitters", "hp_quote_eur", "grant_applied", "grant_value_eur"],
+  2: ["emitters", "grant_applied", "grant_value_eur"],
 };
 
 export default function CalculatorWizard() {
@@ -69,7 +69,6 @@ export default function CalculatorWizard() {
       fuel_price_eur_per_unit: 1.1,
       electricity_price_eur_per_kwh: 0.35,
       boiler_age: "2000s",
-      hp_quote_eur: 14000,
       grant_applied: true,
       grant_value_eur: 6500,
       bill_mode: "annual_spend",

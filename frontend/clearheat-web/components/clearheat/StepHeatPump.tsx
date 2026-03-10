@@ -53,14 +53,14 @@ export default function StepHeatPump({ form }: { form: UseFormReturn<ClearHeatIn
 
         <div className="grid gap-2 min-w-0">
           <Label className="flex items-center">
-            Heat pump quote (€)
-            <InfoTooltip text="The total installed cost quoted by an installer, before any SEAI grant is applied. A typical air-to-water heat pump installation in Ireland costs €12,000–€18,000 before grant. If you don't have a quote yet, use €14,000 as a rough estimate." />
+            Heat pump quote (€) <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
+            <InfoTooltip text="If you already have a quote from an installer, enter the total installed cost before the SEAI grant. A typical air-to-water heat pump in Ireland costs €12,000–€18,000 gross. If you don't have a quote yet, leave this blank — the report will show what you can afford instead." />
           </Label>
           <Input
             className="w-full"
             type="number"
             step="100"
-            placeholder="e.g. 14000"
+            placeholder="Leave blank if no quote yet"
             {...register("hp_quote_eur")}
           />
           {formState.errors.hp_quote_eur?.message && (

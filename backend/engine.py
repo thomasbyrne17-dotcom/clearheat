@@ -146,6 +146,13 @@ def payback_years(capex_eur: float, annual_savings_eur: float) -> float:
     return math.inf if annual_savings_eur <= 0 else capex_eur / annual_savings_eur
 
 
+def safe_payback(capex_eur: Optional[float], annual_savings_eur: float) -> Optional[float]:
+    """Returns None if capex is unknown (no quote), otherwise delegates to payback_years."""
+    if capex_eur is None:
+        return None
+    return payback_years(capex_eur, annual_savings_eur)
+
+
 # -----------------------------
 # V2 finance defaults (simple, defensible)
 # -----------------------------
@@ -160,6 +167,11 @@ MAINTENANCE_CURRENT_EUR_PER_YR = 180.0
 MAINTENANCE_HP_EUR_PER_YR      = 220.0
 
 SENS_PCT = 0.15  # ±15% for SCOP and electricity price
+
+# Affordable-capex horizons and Irish market benchmarks
+PAYBACK_HORIZONS = [8, 10, 12, 15]
+TYPICAL_IRISH_GROSS_LOW  = 12000   # Typical Irish air-to-water HP install low-end (€ gross)
+TYPICAL_IRISH_GROSS_HIGH = 18000   # Typical Irish air-to-water HP install high-end (€ gross)
 
 
 def clamp(x: float, lo: float, hi: float) -> float:
@@ -475,10 +487,15 @@ def validate_and_normalize_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("boiler_efficiency must be between 0.5 and 1.0.")
     out["boiler_efficiency"] = boiler_eff
 
-    hp_quote = float(_require_key(inputs, "hp_quote_eur"))
-    if not (0 <= hp_quote <= 100000):
-        raise ValueError("hp_quote_eur looks out of range.")
-    out["hp_quote_eur"] = hp_quote
+    # hp_quote is optional — users at research stage may not have a quote yet
+    hp_quote_raw = inputs.get("hp_quote_eur")
+    if hp_quote_raw not in (None, "", "null"):
+        hp_quote = float(hp_quote_raw)
+        if not (0 <= hp_quote <= 100000):
+            raise ValueError("hp_quote_eur looks out of range.")
+        out["hp_quote_eur"] = hp_quote
+    else:
+        out["hp_quote_eur"] = None
 
     grant_applied = bool(inputs.get("grant_applied", True))
     out["grant_applied"] = grant_applied
@@ -542,12 +559,13 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     fuel_price = inputs["fuel_price_eur_per_unit"]
     elec_price = inputs["electricity_price_eur_per_kwh"]
     boiler_eff = inputs["boiler_efficiency"]
-    hp_quote = inputs["hp_quote_eur"]
+    hp_quote = inputs.get("hp_quote_eur")        # Optional[float] — None when no quote provided
     grant_applied = inputs["grant_applied"]
     grant_value = inputs["grant_value_eur"]
     dhw_on_same_fuel = inputs["dhw_on_same_fuel"]
 
-    capex = max(0.0, hp_quote - (grant_value if grant_applied else 0.0))
+    quote_provided = hp_quote is not None
+    capex = max(0.0, hp_quote - (grant_value if grant_applied else 0.0)) if quote_provided else None
 
     # Assumptions
     scop_rng = adjusted_scop_range(emitters, flow_temp_capability)
@@ -580,7 +598,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     Chp_ber = band_hp_costs_from_heat(Q_total_ber, scop_rng, elec_price)
     savings_ber = tuple(Ccur_ber[i] - Chp_ber[i] for i in range(3))
-    payback_ber = tuple(payback_years(capex, savings_ber[i]) for i in range(3))
+    payback_ber = tuple(safe_payback(capex, savings_ber[i]) for i in range(3))
 
     # -------------------------
     # Path A: Bills-based (optional)
@@ -638,7 +656,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
         Chp_bill = band_hp_costs_from_heat(Q_total_bill, scop_rng, elec_price)
         savings_bill = tuple(Ccur_bill[i] - Chp_bill[i] for i in range(3))
-        payback_bill = tuple(payback_years(capex, savings_bill[i]) for i in range(3))
+        payback_bill = tuple(safe_payback(capex, savings_bill[i]) for i in range(3))
 
     # -------------------------
     # Verdict + key drivers (verdict-first product layer)
@@ -693,7 +711,44 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     # Typical figures (primary method)
     typ_savings = float(savings_primary[1])
-    typ_payback = float(payback_primary[1]) if payback_primary else math.inf
+    _pp1 = payback_primary[1] if payback_primary else None
+    typ_payback = None if _pp1 is None else float(_pp1)
+
+    # -------------------------
+    # Affordable capex table (always computed)
+    # For each payback horizon, what net capex can savings justify?
+    # -------------------------
+    affordable: Dict[str, Any] = {}
+    for horizon in PAYBACK_HORIZONS:
+        key = f"{horizon}yr"
+        affordable[key] = {}
+        for sc_name, s_val in [("best", savings_primary[0]), ("typical", savings_primary[1]), ("worst", savings_primary[2])]:
+            gross = max(0.0, float(s_val) * horizon)
+            net = max(0.0, gross - (grant_value if grant_applied else 0.0))
+            affordable[key][sc_name] = {
+                "affordable_gross_eur": int(round(gross)),
+                "affordable_net_eur": int(round(net)),
+            }
+
+    # Market verdict based on 12yr typical affordable net vs Irish typical gross range
+    typical_net_12yr = affordable["12yr"]["typical"]["affordable_net_eur"]
+    typical_gross_12yr = affordable["12yr"]["typical"]["affordable_gross_eur"]
+    if typical_gross_12yr >= TYPICAL_IRISH_GROSS_LOW:
+        market_verdict = "viable"
+    elif typical_gross_12yr >= 8000:
+        market_verdict = "borderline"
+    else:
+        market_verdict = "below_market"
+
+    # Reference capex for NPV model and cumulative savings graphs
+    # If user provided a quote, use their actual net capex.
+    # Otherwise, use the typical 12yr affordable net as a reference point.
+    if quote_provided:
+        ref_capex = float(capex)
+        capex_label = None
+    else:
+        ref_capex = float(affordable["12yr"]["typical"]["affordable_net_eur"])
+        capex_label = "Reference (typical 12yr payback)"
 
     # Primary method typical costs and heat (needed for 10yr + sensitivity)
     if primary_label == "bills_based" and bills_available and Q_total_bill and Ccur_bill and Chp_bill:
@@ -706,12 +761,12 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
         Chp_typ = float(Chp_ber[1])
 
     financials_10yr = build_10yr_financials(
-        capex=capex,
+        capex=ref_capex,
         current_cost_typ=Ccur_typ,
         hp_cost_typ=Chp_typ,
     )
     sens = npv_sensitivity_band(
-        capex=capex,
+        capex=ref_capex,
         Q_typ_kwh_th=Q_typ,
         scop_typ=float(scop_rng[1]),
         elec_price=float(elec_price),
@@ -823,10 +878,10 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "fuel_unit": fuel_unit,
             "electricity_price_eur_per_kwh": elec_price,
             "boiler_efficiency": boiler_eff,
-            "hp_quote_eur": hp_quote,
+            "hp_quote_eur": hp_quote,          # None if not provided
             "grant_applied": grant_applied,
             "grant_value_eur": grant_value if grant_applied else 0.0,
-            "hp_capex_eur": capex,
+            "hp_capex_eur": capex,             # None if no quote
             "bill_mode": bill_mode,
             "dhw_on_same_fuel": dhw_on_same_fuel,
         },
@@ -861,7 +916,7 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
                     "current_cost_eur": Ccur_ber[0],
                     "hp_cost_eur": Chp_ber[0],
                     "savings_eur": savings_ber[0],
-                    "payback_years": to_payback_or_none(payback_ber[0]),
+                    "payback_years": to_payback_or_none(payback_ber[0]),  # None when no quote
                 },
                 "typical": {
                     "heat_kwh_th": Q_total_ber[1],
@@ -897,7 +952,17 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "what_this_means": decision_summary,
 
             "typical_savings_eur": float(typ_savings),
-            "typical_payback_years": to_payback_or_none(float(typ_payback)),
+            "typical_payback_years": to_payback_or_none(typ_payback),
+
+            # Affordable capex: what investment the savings justify at each horizon
+            "affordable_capex": affordable,
+            "market_verdict": market_verdict,
+            "typical_irish_gross_range": [TYPICAL_IRISH_GROSS_LOW, TYPICAL_IRISH_GROSS_HIGH],
+
+            # Reference capex used for NPV and graphs
+            "ref_capex_eur": ref_capex,
+            "ref_capex_label": capex_label,   # None if quote provided; descriptive label otherwise
+            "quote_provided": quote_provided,
 
             "npv_10yr_eur": float(financials_10yr["npv_10yr_eur"]),
             "break_even_year": financials_10yr["break_even_year"],
@@ -943,6 +1008,19 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
                 "payback_years": to_payback_or_none(payback_bill[2]),
             },
         })
+
+    # When user provided a quote, add a personalised payback section
+    if quote_provided and capex is not None:
+        report["decision"]["personalised"] = {
+            "capex_eur": capex,
+            "grant_value_eur": grant_value if grant_applied else 0.0,
+            "hp_quote_eur": hp_quote,
+            "payback_years": {
+                "best":    to_payback_or_none(payback_primary[0]),
+                "typical": to_payback_or_none(payback_primary[1]),
+                "worst":   to_payback_or_none(payback_primary[2]),
+            },
+        }
 
     return report
 

@@ -18,7 +18,7 @@ const num = (min: number, max: number) =>
 
 // Optional number
 const numOpt = (min: number, max: number) =>
-  z.preprocess(asNumber, z.number().min(min).max(max)).optional();
+  z.preprocess(asNumber, z.number().min(min).max(max).optional());
 
 // Checkbox/boolean coercion
 const bool = z.preprocess((v) => {

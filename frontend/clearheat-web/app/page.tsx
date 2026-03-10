@@ -32,7 +32,7 @@ export default function HomePage() {
             <br />
             <span className="text-muted-foreground">A €20,000 decision.</span>
             <br />
-            <span className="underline underline-offset-4">€29 to verify it.</span>
+            <span className="underline underline-offset-4">Free to find out.</span>
           </h1>
 
           <p className="text-lg text-muted-foreground">
@@ -59,7 +59,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <span>2–4 minutes</span>
-            <span>No install commitment</span>
+            <span>No quote needed</span>
             <span>Built for Ireland</span>
           </div>
         </div>
@@ -76,27 +76,31 @@ export default function HomePage() {
           <ul className="space-y-2 text-sm text-muted-foreground list-disc pl-5">
             <li>
               <span className="text-foreground font-medium">
-                Executive summary
+                Clear financial verdict
               </span>{" "}
-              with a clear financial verdict
+              — likely saves, borderline, or unlikely
             </li>
-            <li>20-year cost comparison vs your current fuel</li>
+            <li>
+              <span className="text-foreground font-medium">
+                Affordable budget table
+              </span>{" "}
+              — what your savings justify at 8, 10, 12 &amp; 15-year payback horizons
+            </li>
             <li>Best / typical / worst performance scenarios</li>
-            <li>Grant-adjusted payback timeline</li>
+            <li>20-year cumulative savings vs upfront cost</li>
             <li>Sensitivity analysis (electricity price ±15%)</li>
-            <li>Long-term fuel & electricity price escalation assumptions</li>
-            <li>Risk assessment summary (what can flip the outcome)</li>
-            <li>Transparent methodology & modelling assumptions</li>
+            <li>If you have a quote: personalised payback across scenarios</li>
+            <li>Transparent methodology &amp; modelling assumptions</li>
           </ul>
 
           <Separator />
 
           <div className="space-y-2">
             <Button asChild size="lg" className="w-full">
-              <Link href="/calculator">Generate report — €29</Link>
+              <Link href="/calculator">Get Free Report</Link>
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              One-time €29 • Instant PDF download
+              Free • Instant PDF download • No account needed
             </p>
           </div>
 
@@ -119,10 +123,11 @@ export default function HomePage() {
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">Independent</p>
-            <p className="font-semibold text-lg">Not installer-sponsored</p>
+            <p className="font-semibold text-lg">Verdict first, always</p>
             <p className="text-sm text-muted-foreground">
-              ClearHeat does not install heat pumps. The goal is financial
-              clarity, not lead capture.
+              The financial analysis is never influenced by installers.
+              If you want quotes afterwards, that&apos;s your choice — not the
+              starting point.
             </p>
           </Card>
 
@@ -132,14 +137,14 @@ export default function HomePage() {
               Models real inputs, not wishful defaults
             </p>
             <p className="text-sm text-muted-foreground">
-              Uses fuel price, electricity price, boiler efficiency, grant
-              impact and usage patterns — not a single “COP” number.
+              Uses fuel price, electricity price, boiler age, grant
+              impact and usage patterns — not a single "COP" number.
             </p>
           </Card>
 
           <Card className="p-6 space-y-3">
             <p className="text-sm text-muted-foreground">Irish-specific</p>
-            <p className="font-semibold text-lg">Grants & real local costs</p>
+            <p className="font-semibold text-lg">Grants &amp; real local costs</p>
             <p className="text-sm text-muted-foreground">
               Built around Irish grants, common fuels, and typical electricity
               pricing.
@@ -160,7 +165,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 1</p>
             <p className="font-semibold">Home + usage</p>
             <p className="text-sm text-muted-foreground">
-              BER band, floor area and occupancy.
+              BER band, floor area, house type and occupancy.
             </p>
           </Card>
 
@@ -168,7 +173,7 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 2</p>
             <p className="font-semibold">Current heating</p>
             <p className="text-sm text-muted-foreground">
-              Fuel type and annual spend or usage.
+              Fuel type, boiler age and annual spend or usage.
             </p>
           </Card>
 
@@ -176,7 +181,8 @@ export default function HomePage() {
             <p className="text-sm text-muted-foreground">Step 3</p>
             <p className="font-semibold">Heat pump + grant</p>
             <p className="text-sm text-muted-foreground">
-              Your quote and grant assumptions. Report generated instantly.
+              Grant assumptions and your quote if you have one.
+              No quote? The report shows what budget your savings can justify.
             </p>
           </Card>
         </div>
@@ -192,14 +198,15 @@ export default function HomePage() {
       <section className="rounded-2xl border p-10 text-center space-y-6">
         <h2 className="text-3xl font-semibold">Make the decision with clarity</h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Before committing €10,000–€20,000, spend €29 to get a written verdict,
+          Before committing €10,000–€20,000, get a written verdict,
           payback range, and transparent assumptions based on your home.
+          Free, independent, built for Ireland.
         </p>
         <Button asChild size="lg">
-          <Link href="/calculator">Generate report — €29</Link>
+          <Link href="/calculator">Get Free Report</Link>
         </Button>
         <p className="text-xs text-muted-foreground">
-          One-time €29 • Instant PDF download
+          Free • No account needed • Instant PDF download
         </p>
       </section>
     </main>

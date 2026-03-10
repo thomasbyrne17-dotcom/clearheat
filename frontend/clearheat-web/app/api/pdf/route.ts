@@ -1,56 +1,21 @@
-import Stripe from "stripe";
 import { NextResponse } from "next/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
-export async function POST(req: Request) {
+// Free PDF download — no payment required in phase 2.
+export async function GET(req: Request) {
   try {
-    const { session_id, reportId } = await req.json();
+    const { searchParams } = new URL(req.url);
+    const reportId = searchParams.get("reportId");
 
-    if (!session_id || !reportId) {
-      return NextResponse.json(
-        { error: "Missing session_id or reportId" },
-        { status: 400 }
-      );
+    if (!reportId) {
+      return NextResponse.json({ error: "Missing reportId" }, { status: 400 });
     }
 
-    // 1) Verify Stripe payment
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-
-    if (session.payment_status !== "paid") {
-      return NextResponse.json(
-        { error: "Payment not completed" },
-        { status: 402 }
-      );
-    }
-
-    // 2) Verify the reportId matches what was paid for
-    const paidReportId = (session.metadata as any)?.reportId;
-    if (!paidReportId) {
-      return NextResponse.json(
-        { error: "Stripe session missing reportId metadata" },
-        { status: 500 }
-      );
-    }
-
-    if (paidReportId !== reportId) {
-      return NextResponse.json(
-        { error: "ReportId does not match paid session" },
-        { status: 403 }
-      );
-    }
-
-    // 3) Fetch PDF from backend by reportId
     const backend =
-      process.env.BACKEND_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.NEXT_PUBLIC_BACKEND_BASE;
+      process.env.NEXT_PUBLIC_BACKEND_BASE ||
+      process.env.NEXT_PUBLIC_API_URL;
 
     if (!backend) {
-      return NextResponse.json(
-        { error: "Missing backend base URL env var" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Backend URL not configured" }, { status: 500 });
     }
 
     const r = await fetch(
@@ -61,8 +26,8 @@ export async function POST(req: Request) {
     if (!r.ok) {
       const text = await r.text();
       return NextResponse.json(
-        { error: "Backend PDF fetch failed", details: text },
-        { status: 500 }
+        { error: "PDF fetch failed", details: text },
+        { status: r.status }
       );
     }
 
@@ -75,9 +40,6 @@ export async function POST(req: Request) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: e?.message ?? "Internal error" }, { status: 500 });
   }
 }

@@ -338,6 +338,114 @@ def kv_row(c: canvas.Canvas, x: float, y: float, label: str, value: str, w: floa
 # =========================
 # Tables
 # =========================
+
+def affordable_capex_table(
+    c: canvas.Canvas,
+    x: float,
+    y_top: float,
+    w: float,
+    affordable: Dict[str, Any],
+    grant_applied: bool,
+    grant_value_eur: float,
+    market_verdict: str,
+    typical_irish_range: List[int],
+) -> float:
+    """
+    Table showing the net affordable capex for 8/10/12/15 year payback horizons
+    across best / typical / worst scenarios.
+    """
+    horizons = ["8yr", "10yr", "12yr", "15yr"]
+    horizon_labels = ["8 years", "10 years", "12 years", "15 years"]
+
+    row_h = 8.5 * mm
+    pad = 4 * mm
+    header_h = 14 * mm
+    footer_h = 10 * mm
+    h = header_h + row_h * len(horizons) + footer_h
+
+    panel(c, x, y_top, w, h)
+
+    c.setFillColor(COLOR_PRIMARY)
+    c.setFont("Helvetica-Bold", 10.5)
+    c.drawString(x + pad, y_top - pad - 1.5 * mm, "Affordable Installation Budget (Net, After Grant)")
+
+    tx = x + pad
+    ty = y_top - header_h
+    tw = w - 2 * pad
+
+    cols = [0.34 * tw, 0.22 * tw, 0.22 * tw, 0.22 * tw]
+    headers = ["Payback target", "Best", "Typical", "Worst"]
+
+    # Header row background
+    c.setFillColor(COLOR_LINE)
+    c.rect(tx, ty, tw, row_h, stroke=0, fill=1)
+
+    # Outer border for data rows
+    c.setStrokeColor(COLOR_LINE)
+    c.setLineWidth(0.8)
+    c.rect(tx, ty - len(horizons) * row_h, tw, (len(horizons) + 1) * row_h, stroke=1, fill=0)
+
+    # Vertical dividers
+    xx = tx
+    for wc in cols[:-1]:
+        xx += wc
+        c.line(xx, ty - len(horizons) * row_h, xx, ty + row_h)
+
+    # Horizontal row dividers
+    for i in range(len(horizons)):
+        c.line(tx, ty - i * row_h, tx + tw, ty - i * row_h)
+
+    def cell(col_i: int, row_i: int, text: str, bold: bool = False, color: Color = COLOR_TEXT, right: bool = False):
+        c.setFillColor(color)
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 9.5)
+        cx_left = tx + sum(cols[:col_i]) + 2.5 * mm
+        cx_right = tx + sum(cols[:col_i + 1]) - 2.5 * mm
+        cy = ty + (row_h - 5.5 * mm) - row_i * row_h + 1.8 * mm
+        if right:
+            c.drawRightString(cx_right, cy, text)
+        else:
+            c.drawString(cx_left, cy, text)
+
+    # Header cells
+    for i, htxt in enumerate(headers):
+        cell(i, 0, htxt, bold=True, color=COLOR_PRIMARY if i == 0 else COLOR_TEXT)
+
+    # Data rows
+    for row_i, (key, label) in enumerate(zip(horizons, horizon_labels)):
+        aff = affordable.get(key, {})
+        cell(0, row_i + 1, label, bold=False, color=COLOR_MUTED)
+        for col_i, sc in enumerate(["best", "typical", "worst"], start=1):
+            sc_data = aff.get(sc, {})
+            net = sc_data.get("affordable_net_eur")
+            val_txt = eur(net) if net is not None and net > 0 else "< Grant"
+            bold_row = key == "12yr" and col_i == 2  # highlight 12yr typical
+            cell(col_i, row_i + 1, val_txt, bold=bold_row, right=True,
+                 color=COLOR_PRIMARY if bold_row else COLOR_TEXT)
+
+    # Footer note with grant info and market benchmark
+    note_y = ty - len(horizons) * row_h - 1.5 * mm
+    grant_note = f"After €{int(grant_value_eur):,} SEAI grant." if grant_applied else "No grant applied."
+    bench_low, bench_high = (typical_irish_range[0], typical_irish_range[1]) if typical_irish_range else (12000, 18000)
+    note_line = f"{grant_note}  Irish installs typically cost €{bench_low//1000}k–€{bench_high//1000}k gross before grant."
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 8.2)
+    c.drawString(tx, note_y - 2.5 * mm, note_line)
+
+    # Market verdict coloured strip
+    verdict_color = {"viable": COLOR_GREEN, "borderline": COLOR_AMBER, "below_market": COLOR_RED}.get(market_verdict, COLOR_MUTED)
+    verdict_msgs = {
+        "viable":       "Your savings can justify a typical Irish installation — it should pay back within 12 years.",
+        "borderline":   "Savings can justify a mid-range installation. The outcome depends on design and energy prices.",
+        "below_market": "Savings may not justify a typical installation at current prices. Improving insulation first can help.",
+    }
+    verdict_note = verdict_msgs.get(market_verdict, "")
+    c.setFillColor(verdict_color)
+    c.setFont("Helvetica-Bold", 8.4)
+    c.drawString(tx, note_y - 7.5 * mm, verdict_note)
+
+    return y_top - h - 4 * mm
+
+
 def scenario_compare_table(
     c: canvas.Canvas,
     x: float,
@@ -439,6 +547,7 @@ def draw_cumulative_graph(
     series_5: List[float],
     series_10: List[float],
     series_15: List[float],
+    capex_label: Optional[str] = None,
 ) -> None:
     panel(c, x, y_top, w, h)
     pad = 6 * mm
@@ -511,7 +620,12 @@ def draw_cumulative_graph(
     c.line(cx0, cap_y, cx1, cap_y)
     c.setFillColor(COLOR_PRIMARY)
     c.setFont("Helvetica-Bold", 8.8)
-    c.drawRightString(cx1, cap_y + 2.0 * mm, f"Capex: {eur(capex)}")
+    cap_line_label = capex_label if capex_label else f"Capex: {eur(capex)}"
+    if not capex_label:
+        cap_line_label = f"Capex: {eur(capex)}"
+    else:
+        cap_line_label = f"{capex_label}: {eur(capex)}"
+    c.drawRightString(cx1, cap_y + 2.0 * mm, cap_line_label)
 
     # Series drawer
     def draw_series(vals: List[float], dash: Optional[Tuple[int, int]]):
@@ -683,7 +797,19 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     primary_method = get_primary_method(report)
     best, typ, worst = scenario_triplet(report, primary_method)
 
-    capex = safe_float(inp.get("hp_capex_eur")) or 0.0
+    capex = safe_float(inp.get("hp_capex_eur"))  # May be None if no quote
+
+    quote_provided = bool(dec.get("quote_provided", capex is not None))
+    ref_capex = safe_float(dec.get("ref_capex_eur")) or 0.0
+    capex_label = dec.get("ref_capex_label")  # e.g. "Reference (typical 12yr payback)" or None
+
+    affordable = dec.get("affordable_capex") or {}
+    market_verdict = str(dec.get("market_verdict", ""))
+    typical_irish_range = dec.get("typical_irish_range") or [12000, 18000]
+    personalised = dec.get("personalised")
+
+    grant_applied = bool(inp.get("grant_applied", True))
+    grant_value_eur = safe_float(inp.get("grant_value_eur")) or 0.0
 
     total_pages = 7
 
@@ -764,6 +890,7 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     c.drawString(x0, y, "Executive Summary")
     y -= 10 * mm
 
+    # --- Verdict panel ---
     panel_h = 42 * mm
     panel(c, x0, y, usable_w, panel_h)
     c.setFillColor(accent)
@@ -779,31 +906,62 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     c.setFont("Helvetica", 10.2)
     c.drawString(x0 + 9 * mm, y - 34 * mm, f"Confidence: {conf_score_str} ({conf_level})")
 
-    y -= panel_h + 10 * mm
+    y -= panel_h + 8 * mm
 
-    y = section_title(c, x0, y, "Key numbers (Typical case)")
+    # --- Affordable capex table (primary output) ---
+    y = section_title(c, x0, y, "What size of investment can your savings justify?")
+    if affordable:
+        y = affordable_capex_table(
+            c, x0, y, usable_w,
+            affordable=affordable,
+            grant_applied=grant_applied,
+            grant_value_eur=grant_value_eur,
+            market_verdict=market_verdict,
+            typical_irish_range=typical_irish_range,
+        )
+    y -= 4 * mm
+
+    # --- Your quote (personalised) — only if quote provided ---
+    if quote_provided and personalised:
+        pb = personalised.get("payback_years", {})
+        net_cost = safe_float(personalised.get("capex_eur"))
+        quote_gross = safe_float(personalised.get("hp_quote_eur"))
+
+        y = section_title(c, x0, y, "Your quote")
+        panel_qh = 28 * mm
+        panel(c, x0, y, usable_w, panel_qh)
+        qx = x0 + 5 * mm
+        qy = y - 7 * mm
+        c.setFillColor(COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 10)
+        grant_txt = f"(€{int(grant_value_eur):,} SEAI grant applied)" if grant_applied else "(no grant applied)"
+        c.drawString(qx, qy, f"Quoted: {eur(quote_gross)}  →  Net cost: {eur(net_cost)}  {grant_txt}")
+        qy -= 7 * mm
+        c.setFillColor(COLOR_MUTED)
+        c.setFont("Helvetica", 9.5)
+        pb_best = years_text(pb.get("best"))
+        pb_typ  = years_text(pb.get("typical"))
+        pb_wst  = years_text(pb.get("worst"))
+        c.drawString(qx, qy, f"Simple payback —  Best: {pb_best} yr   Typical: {pb_typ} yr   Worst: {pb_wst} yr")
+        qy -= 7 * mm
+        c.setFillColor(COLOR_MUTED)
+        c.setFont("Helvetica-Oblique", 8.5)
+        c.drawString(qx, qy, "Based on your current energy spend vs projected heat pump running costs.")
+        y -= panel_qh + 6 * mm
+
+    # --- Key figures ---
+    y = section_title(c, x0, y, "Key figures (Typical case)")
     y = kv_row(c, x0, y, "Estimated annual savings", eur(dec.get("typical_savings_eur")), usable_w)
-    y = kv_row(c, x0, y, "Simple payback", f"{years_text(dec.get('typical_payback_years'))} years", usable_w)
-    y = kv_row(c, x0, y, "Net upfront cost (capex)", eur(capex), usable_w)
+    if not quote_provided:
+        lbl = capex_label or "Reference capex (12yr typical)"
+        y = kv_row(c, x0, y, lbl, eur(ref_capex), usable_w)
     y -= 2 * mm
 
-    y = section_title(c, x0, y, "Scenario comparison")
-    y = scenario_compare_table(c, x0, y, usable_w, best, typ, worst)
-
-    y = section_title(c, x0, y, "How to interpret scenarios")
-    expl = [
-        "Best case assumes strong heat pump performance and favourable operating conditions.",
-        "Typical case is the central estimate intended to reflect a normal installation and realistic usage.",
-        "Worst case assumes a less favourable combination (lower performance or higher running costs).",
-        "If your result is positive even in the worst case, the decision is more robust.",
-    ]
-    y = draw_bullets(c, x0, y, expl, usable_w, size=10, leading=13)
-
-    y -= 2 * mm
+    # --- Key drivers ---
     y = section_title(c, x0, y, "Key drivers")
     drivers = dec.get("key_drivers", []) or []
     if drivers:
-        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:8]], usable_w, size=10, leading=13)
+        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:5]], usable_w, size=10, leading=13)
     else:
         y = draw_wrapped(c, x0, y, "Key drivers not available for this run.", usable_w, size=10, color=COLOR_MUTED)
 
@@ -823,12 +981,12 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
         y -= 10 * mm
 
         annual_savings = safe_float(scenario_block.get("savings_eur")) or 0.0
-        years = 20  # UPDATED
+        years = 20
 
-        base = build_cumulative_series(capex, annual_savings, years, elec_uplift=0.00)
-        s5   = build_cumulative_series(capex, annual_savings, years, elec_uplift=0.05)
-        s10  = build_cumulative_series(capex, annual_savings, years, elec_uplift=0.10)
-        s15  = build_cumulative_series(capex, annual_savings, years, elec_uplift=0.15)
+        base = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.00)
+        s5   = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.05)
+        s10  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.10)
+        s15  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.15)
 
         draw_cumulative_graph(
             c,
@@ -837,19 +995,21 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
             usable_w,
             98 * mm,
             title="Cumulative savings versus upfront cost (with electricity price stress)",
-            capex=capex,
+            capex=ref_capex,
             series_base=base,
             series_5=s5,
             series_10=s10,
             series_15=s15,
+            capex_label=capex_label,
         )
         y -= 108 * mm
 
         y = section_title(c, x0, y, "Key results (This scenario)")
         y = kv_row(c, x0, y, "Annual savings (base electricity price)", eur(annual_savings), usable_w)
-        y = kv_row(c, x0, y, "Simple payback (base)", f"{years_text(scenario_block.get('payback_years'))} years", usable_w)
+        if quote_provided:
+            y = kv_row(c, x0, y, "Simple payback (base)", f"{years_text(scenario_block.get('payback_years'))} years", usable_w)
 
-        be = find_break_even_year(capex, base)
+        be = find_break_even_year(ref_capex, base)
         y = kv_row(
             c, x0, y, "Break-even year (base)",
             (f"Year {be}" if be is not None else "No break-even within 20 years"),

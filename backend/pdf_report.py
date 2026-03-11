@@ -318,6 +318,30 @@ def panel(c: canvas.Canvas, x: float, y_top: float, w: float, h: float) -> None:
     c.setLineWidth(0.8)
     c.roundRect(x, y_top - h, w, h, radius=3 * mm, stroke=1, fill=1)
 
+
+def draw_left_accent_bar(
+    c: canvas.Canvas, x: float, y_top: float, bar_w: float, bar_h: float,
+    color: Color, radius: float = 3 * mm
+) -> None:
+    """Solid bar with rounded corners on the LEFT side only, square on the right."""
+    r = min(radius, bar_w / 2, bar_h / 2)
+    bx, by = x, y_top - bar_h   # bottom-left corner
+    p = c.beginPath()
+    # Start at top-right (square)
+    p.moveTo(bx + bar_w, y_top)
+    # Top edge → top-left (rounded)
+    p.lineTo(bx + r, y_top)
+    p.curveTo(bx, y_top, bx, y_top, bx, y_top - r)
+    # Left edge down → bottom-left (rounded)
+    p.lineTo(bx, by + r)
+    p.curveTo(bx, by, bx, by, bx + r, by)
+    # Bottom edge → bottom-right (square)
+    p.lineTo(bx + bar_w, by)
+    p.close()
+    c.setFillColor(color)
+    c.drawPath(p, stroke=0, fill=1)
+
+
 def section_title(c: canvas.Canvas, x: float, y: float, title: str) -> float:
     c.setFillColor(COLOR_PRIMARY)
     c.setFont("Helvetica-Bold", 13)
@@ -382,10 +406,10 @@ def affordable_capex_table(
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 8.5)
     intro_lines = _wrap_lines(intro, "Helvetica", 8.5, w - 2 * pad)
-    iy = y_top - pad - 6 * mm
+    iy = y_top - pad - 5 * mm
     for ln in intro_lines[:2]:
         c.drawString(x + pad, iy, ln)
-        iy -= 4.5 * mm
+        iy -= 4 * mm
 
     # ---- Table ----
     tx = x + pad
@@ -827,7 +851,7 @@ def draw_bottom_line_callout(
     accent: Color,
 ) -> float:
     """A prominent single-sentence callout — the most important number in the report."""
-    h = 15 * mm
+    h = 18 * mm
     # Solid coloured background
     c.setFillColor(HexColor("#EEF5EE") if accent == COLOR_GREEN
                    else HexColor("#FFF8EE") if accent == COLOR_AMBER
@@ -835,18 +859,19 @@ def draw_bottom_line_callout(
     c.setStrokeColor(accent)
     c.setLineWidth(1.4)
     c.roundRect(x, y_top - h, w, h, radius=3 * mm, stroke=1, fill=1)
-    # Left colour bar
-    c.setFillColor(accent)
-    c.roundRect(x, y_top - h, 5 * mm, h, radius=3 * mm, stroke=0, fill=1)
-    c.rect(x + 2 * mm, y_top - h, 3 * mm, h, stroke=0, fill=1)  # square off right side
+    # Left colour bar (rounded left side only)
+    draw_left_accent_bar(c, x, y_top, 5 * mm, h, accent)
 
     c.setFillColor(COLOR_TEXT)
     c.setFont("Helvetica-Bold", 10.2)
     lines = _wrap_lines(text, "Helvetica-Bold", 10.2, w - 14 * mm)
-    text_y = y_top - h / 2 + (len(lines) - 1) * 2.8 * mm
+    leading_mm = 6.0 * mm
+    n = len(lines[:2])
+    # Centre the text block vertically: baseline of first line
+    text_y = y_top - (h - (n - 1) * leading_mm) / 2
     for ln in lines[:2]:
         c.drawString(x + 8 * mm, text_y, ln)
-        text_y -= 5.6 * mm
+        text_y -= leading_mm
     return y_top - h - 4 * mm
 
 
@@ -871,10 +896,8 @@ def draw_verdict_panel(
     h = 40 * mm + bullet_h
 
     panel(c, x, y_top, w, h)
-    # Left accent bar
-    c.setFillColor(accent)
-    c.roundRect(x, y_top - h, 5 * mm, h, radius=3 * mm, stroke=0, fill=1)
-    c.rect(x + 2 * mm, y_top - h, 3 * mm, h, stroke=0, fill=1)
+    # Left accent bar (rounded left side only)
+    draw_left_accent_bar(c, x, y_top, 5 * mm, h, accent)
 
     inner_x = x + 9 * mm
     avail_w = w - 13 * mm
@@ -1198,9 +1221,7 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     teaser_h = 22 * mm
     teaser_y = y - 14 * mm
     panel(c, center_x - 75 * mm, teaser_y, 150 * mm, teaser_h)
-    c.setFillColor(accent)
-    c.roundRect(center_x - 75 * mm, teaser_y - teaser_h, 5 * mm, teaser_h, radius=3 * mm, stroke=0, fill=1)
-    c.rect(center_x - 73 * mm, teaser_y - teaser_h, 3 * mm, teaser_h, stroke=0, fill=1)
+    draw_left_accent_bar(c, center_x - 75 * mm, teaser_y, 5 * mm, teaser_h, accent)
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 9)
     c.drawString(center_x - 66 * mm, teaser_y - 7 * mm, "Preliminary result")

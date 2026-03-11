@@ -360,10 +360,10 @@ def affordable_capex_table(
     scenarios    = [("best", "Best case"), ("typical", "Typical"), ("worst", "Worst case")]
 
     pad      = 4 * mm
-    row_h    = 9.5 * mm
-    hdr_h    = 11 * mm
-    intro_h  = 18 * mm   # space for explanatory text above the table
-    footer_h = 28 * mm   # enough for two context lines + market verdict line
+    row_h    = 8.5 * mm
+    hdr_h    = 9 * mm
+    intro_h  = 14 * mm   # space for explanatory text above the table
+    footer_h = 22 * mm   # enough for two context lines + market verdict line
     h = intro_h + hdr_h + row_h * len(scenarios) + footer_h
 
     panel(c, x, y_top, w, h)
@@ -380,12 +380,12 @@ def affordable_capex_table(
         f"spend ({grant_phrase}) and still break even within each timeframe."
     )
     c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 8.8)
-    intro_lines = _wrap_lines(intro, "Helvetica", 8.8, w - 2 * pad)
-    iy = y_top - pad - 7 * mm
+    c.setFont("Helvetica", 8.5)
+    intro_lines = _wrap_lines(intro, "Helvetica", 8.5, w - 2 * pad)
+    iy = y_top - pad - 6 * mm
     for ln in intro_lines[:2]:
         c.drawString(x + pad, iy, ln)
-        iy -= 5 * mm
+        iy -= 4.5 * mm
 
     # ---- Table ----
     tx = x + pad
@@ -465,16 +465,17 @@ def affordable_capex_table(
     net_low  = max(0, bench_low  - int(grant_value_eur)) if grant_applied else bench_low
     net_high = max(0, bench_high - int(grant_value_eur)) if grant_applied else bench_high
 
-    fy = ty - len(scenarios) * row_h - 4 * mm
+    fy = ty - len(scenarios) * row_h - 3 * mm
     c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 8.5)
-    c.drawString(tx, fy,
-        f"Typical Irish air-to-water heat pump installations cost €{bench_low//1000}k–€{bench_high//1000}k gross (before grant).")
-    fy -= 5.5 * mm
+    c.setFont("Helvetica", 8)
     if grant_applied:
         c.drawString(tx, fy,
-            f"After the €{int(grant_value_eur):,} SEAI grant, your out-of-pocket cost is typically €{net_low//1000}k–€{net_high//1000}k.")
-        fy -= 5.5 * mm
+            f"Typical Irish installation: €{bench_low//1000}k–€{bench_high//1000}k gross / "
+            f"€{net_low//1000}k–€{net_high//1000}k net after the €{int(grant_value_eur):,} SEAI grant.")
+    else:
+        c.drawString(tx, fy,
+            f"Typical Irish installation: €{bench_low//1000}k–€{bench_high//1000}k gross (no grant applied).")
+    fy -= 5 * mm
 
     # ---- Market verdict coloured summary line ----
     verdict_color = {
@@ -491,11 +492,11 @@ def affordable_capex_table(
             "Caution: at current prices, savings may not justify a typical Irish installation. Improving insulation first can help.",
     }
     c.setFillColor(verdict_color)
-    c.setFont("Helvetica-Bold", 8.8)
-    verdict_lines = _wrap_lines(verdict_msgs.get(market_verdict, ""), "Helvetica-Bold", 8.8, tw)
+    c.setFont("Helvetica-Bold", 8.5)
+    verdict_lines = _wrap_lines(verdict_msgs.get(market_verdict, ""), "Helvetica-Bold", 8.5, tw)
     for ln in verdict_lines[:2]:
         c.drawString(tx, fy, ln)
-        fy -= 5.5 * mm
+        fy -= 5 * mm
 
     return y_top - h - 4 * mm
 
@@ -826,7 +827,7 @@ def draw_bottom_line_callout(
     accent: Color,
 ) -> float:
     """A prominent single-sentence callout — the most important number in the report."""
-    h = 17 * mm
+    h = 15 * mm
     # Solid coloured background
     c.setFillColor(HexColor("#EEF5EE") if accent == COLOR_GREEN
                    else HexColor("#FFF8EE") if accent == COLOR_AMBER
@@ -842,11 +843,11 @@ def draw_bottom_line_callout(
     c.setFillColor(COLOR_TEXT)
     c.setFont("Helvetica-Bold", 10.2)
     lines = _wrap_lines(text, "Helvetica-Bold", 10.2, w - 14 * mm)
-    text_y = y_top - h / 2 + (len(lines) - 1) * 3.0 * mm
+    text_y = y_top - h / 2 + (len(lines) - 1) * 2.8 * mm
     for ln in lines[:2]:
         c.drawString(x + 8 * mm, text_y, ln)
-        text_y -= 6.0 * mm
-    return y_top - h - 5 * mm
+        text_y -= 5.6 * mm
+    return y_top - h - 4 * mm
 
 
 # =========================
@@ -864,10 +865,10 @@ def draw_verdict_panel(
 ) -> float:
     """Redesigned verdict panel: large verdict, plain-English reliability label, bullets."""
     bullet_h = sum(
-        len(_wrap_lines(b, "Helvetica", 9.5, w - 22 * mm)) * 5.5 * mm
+        len(_wrap_lines(b, "Helvetica", 9.5, w - 22 * mm)) * 5.2 * mm
         for b in what_this_means[:2]
     )
-    h = 46 * mm + bullet_h
+    h = 40 * mm + bullet_h
 
     panel(c, x, y_top, w, h)
     # Left accent bar
@@ -880,43 +881,42 @@ def draw_verdict_panel(
 
     # "Our assessment"
     c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 9)
-    c.drawString(inner_x, y_top - 9 * mm, "Our assessment")
+    c.setFont("Helvetica", 8.5)
+    c.drawString(inner_x, y_top - 8 * mm, "Our assessment")
 
     # Verdict text (large)
     c.setFillColor(accent)
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(inner_x, y_top - 20 * mm, verdict_text)
+    c.setFont("Helvetica-Bold", 17)
+    c.drawString(inner_x, y_top - 17 * mm, verdict_text)
 
     # Thin separator line
     c.setStrokeColor(COLOR_LINE)
     c.setLineWidth(0.6)
-    c.line(inner_x, y_top - 25 * mm, x + w - 6 * mm, y_top - 25 * mm)
+    c.line(inner_x, y_top - 21 * mm, x + w - 6 * mm, y_top - 21 * mm)
 
     # Reliability label
     c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 9)
-    c.drawString(inner_x, y_top - 30 * mm, "Reliability:  ")
-    c.setFont("Helvetica-Bold", 9)
+    c.setFont("Helvetica", 8.5)
+    c.drawString(inner_x, y_top - 26 * mm, "Reliability:  ")
+    c.setFont("Helvetica-Bold", 8.5)
     c.setFillColor(COLOR_TEXT)
-    rel_lines = _wrap_lines(confidence_basis, "Helvetica-Bold", 9, avail_w - 22 * mm)
-    # Draw label + text on same line
+    rel_lines = _wrap_lines(confidence_basis, "Helvetica-Bold", 8.5, avail_w - 22 * mm)
     from reportlab.pdfbase.pdfmetrics import stringWidth
-    label_w = stringWidth("Reliability:  ", "Helvetica", 9)
-    c.drawString(inner_x + label_w, y_top - 30 * mm, rel_lines[0] if rel_lines else "")
-    vy = y_top - 37 * mm
+    label_w = stringWidth("Reliability:  ", "Helvetica", 8.5)
+    c.drawString(inner_x + label_w, y_top - 26 * mm, rel_lines[0] if rel_lines else "")
+    vy = y_top - 32 * mm
 
     # What this means bullets
     for bullet in what_this_means[:2]:
         c.setFillColor(COLOR_TEXT)
-        c.setFont("Helvetica", 9.5)
-        blines = _wrap_lines(bullet, "Helvetica", 9.5, avail_w - 5 * mm)
+        c.setFont("Helvetica", 9.2)
+        blines = _wrap_lines(bullet, "Helvetica", 9.2, avail_w - 5 * mm)
         c.drawString(inner_x, vy, "•")
-        for i, ln in enumerate(blines[:3]):
+        for ln in blines[:3]:
             c.drawString(inner_x + 4 * mm, vy, ln)
-            vy -= 5.5 * mm
+            vy -= 5.2 * mm
 
-    return y_top - h - 6 * mm
+    return y_top - h - 4 * mm
 
 
 # =========================
@@ -1321,12 +1321,12 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
         c.drawString(qx, qy, "Payback estimated from your current fuel spend vs projected heat pump running costs.")
         y -= panel_qh + 4 * mm
 
-    # --- Key drivers ---
+    # --- Key drivers (top 2 only on exec summary — keeps page from overflowing) ---
     y -= 2 * mm
     y = section_title(c, x0, y, "What's driving this result?")
     drivers = dec.get("key_drivers", []) or []
     if drivers:
-        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:4]], usable_w, size=9.5, leading=13)
+        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:2]], usable_w, size=9.2, leading=11.5)
     else:
         y = draw_wrapped(c, x0, y, "Key drivers not available for this run.", usable_w, size=10, color=COLOR_MUTED)
 

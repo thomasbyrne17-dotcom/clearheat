@@ -815,6 +815,276 @@ def scenario_triplet(report: Dict[str, Any], method: str) -> Tuple[Dict[str, Any
 
 
 # =========================
+# Bottom-line callout box
+# =========================
+def draw_bottom_line_callout(
+    c: canvas.Canvas,
+    x: float,
+    y_top: float,
+    w: float,
+    text: str,
+    accent: Color,
+) -> float:
+    """A prominent single-sentence callout — the most important number in the report."""
+    h = 17 * mm
+    # Solid coloured background
+    c.setFillColor(HexColor("#EEF5EE") if accent == COLOR_GREEN
+                   else HexColor("#FFF8EE") if accent == COLOR_AMBER
+                   else HexColor("#FEEEEE"))
+    c.setStrokeColor(accent)
+    c.setLineWidth(1.4)
+    c.roundRect(x, y_top - h, w, h, radius=3 * mm, stroke=1, fill=1)
+    # Left colour bar
+    c.setFillColor(accent)
+    c.roundRect(x, y_top - h, 5 * mm, h, radius=3 * mm, stroke=0, fill=1)
+    c.rect(x + 2 * mm, y_top - h, 3 * mm, h, stroke=0, fill=1)  # square off right side
+
+    c.setFillColor(COLOR_TEXT)
+    c.setFont("Helvetica-Bold", 10.2)
+    lines = _wrap_lines(text, "Helvetica-Bold", 10.2, w - 14 * mm)
+    text_y = y_top - h / 2 + (len(lines) - 1) * 3.0 * mm
+    for ln in lines[:2]:
+        c.drawString(x + 8 * mm, text_y, ln)
+        text_y -= 6.0 * mm
+    return y_top - h - 5 * mm
+
+
+# =========================
+# Verdict panel (redesigned)
+# =========================
+def draw_verdict_panel(
+    c: canvas.Canvas,
+    x: float,
+    y_top: float,
+    w: float,
+    verdict_text: str,
+    confidence_basis: str,
+    what_this_means: List[str],
+    accent: Color,
+) -> float:
+    """Redesigned verdict panel: large verdict, plain-English reliability label, bullets."""
+    bullet_h = sum(
+        len(_wrap_lines(b, "Helvetica", 9.5, w - 22 * mm)) * 5.5 * mm
+        for b in what_this_means[:2]
+    )
+    h = 46 * mm + bullet_h
+
+    panel(c, x, y_top, w, h)
+    # Left accent bar
+    c.setFillColor(accent)
+    c.roundRect(x, y_top - h, 5 * mm, h, radius=3 * mm, stroke=0, fill=1)
+    c.rect(x + 2 * mm, y_top - h, 3 * mm, h, stroke=0, fill=1)
+
+    inner_x = x + 9 * mm
+    avail_w = w - 13 * mm
+
+    # "Our assessment"
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 9)
+    c.drawString(inner_x, y_top - 9 * mm, "Our assessment")
+
+    # Verdict text (large)
+    c.setFillColor(accent)
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(inner_x, y_top - 20 * mm, verdict_text)
+
+    # Thin separator line
+    c.setStrokeColor(COLOR_LINE)
+    c.setLineWidth(0.6)
+    c.line(inner_x, y_top - 25 * mm, x + w - 6 * mm, y_top - 25 * mm)
+
+    # Reliability label
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 9)
+    c.drawString(inner_x, y_top - 30 * mm, "Reliability:  ")
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(COLOR_TEXT)
+    rel_lines = _wrap_lines(confidence_basis, "Helvetica-Bold", 9, avail_w - 22 * mm)
+    # Draw label + text on same line
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    label_w = stringWidth("Reliability:  ", "Helvetica", 9)
+    c.drawString(inner_x + label_w, y_top - 30 * mm, rel_lines[0] if rel_lines else "")
+    vy = y_top - 37 * mm
+
+    # What this means bullets
+    for bullet in what_this_means[:2]:
+        c.setFillColor(COLOR_TEXT)
+        c.setFont("Helvetica", 9.5)
+        blines = _wrap_lines(bullet, "Helvetica", 9.5, avail_w - 5 * mm)
+        c.drawString(inner_x, vy, "•")
+        for i, ln in enumerate(blines[:3]):
+            c.drawString(inner_x + 4 * mm, vy, ln)
+            vy -= 5.5 * mm
+
+    return y_top - h - 6 * mm
+
+
+# =========================
+# Scenario graph: no-quote version (shows savings against Irish market range)
+# =========================
+def draw_savings_projection_graph(
+    c: canvas.Canvas,
+    x: float,
+    y_top: float,
+    w: float,
+    h: float,
+    annual_savings: float,
+    typical_irish_net_low: float,
+    typical_irish_net_high: float,
+    elec_uplift_levels: List[float],
+) -> None:
+    """
+    For the no-quote case: shows cumulative savings over 20 years as lines,
+    with a shaded band for the typical Irish net cost range, so the homeowner
+    can see where savings would cross a realistic installation cost.
+    """
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+
+    panel(c, x, y_top, w, h)
+    pad = 6 * mm
+
+    c.setFillColor(COLOR_PRIMARY)
+    c.setFont("Helvetica-Bold", 10.8)
+    c.drawString(x + pad, y_top - pad - 1.5 * mm, "How quickly could your savings add up?")
+
+    cx0 = x + pad
+    cx1 = x + w - pad
+    legend_safe_h = 22 * mm
+    cy0 = y_top - h + 14 * mm
+    cy1 = y_top - 18 * mm - legend_safe_h
+
+    years = 20
+    all_series: List[List[float]] = []
+    for uplift in elec_uplift_levels:
+        series = [0.0]
+        cum = 0.0
+        for _ in range(1, years + 1):
+            cum += annual_savings * (1.0 - uplift)
+            series.append(cum)
+        all_series.append(series)
+
+    all_vals = [v for s in all_series for v in s] + [typical_irish_net_low, typical_irish_net_high]
+    vmin = 0.0
+    vmax = max(all_vals) * 1.05
+    if abs(vmax - vmin) < 1e-9:
+        vmax = 1.0
+
+    def x_for_year(t: int) -> float:
+        return cx0 + (cx1 - cx0) * (t / years)
+
+    def y_for_val(v: float) -> float:
+        return cy0 + (cy1 - cy0) * ((v - vmin) / (vmax - vmin))
+
+    # Axes
+    c.setStrokeColor(COLOR_LINE)
+    c.setLineWidth(1.0)
+    c.line(cx0, cy0, cx0, cy1)
+    c.line(cx0, cy0, cx1, cy0)
+
+    # Y grid
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 8.5)
+    for frac in [0.0, 0.25, 0.5, 0.75, 1.0]:
+        v = vmin + frac * (vmax - vmin)
+        yy = y_for_val(v)
+        c.setStrokeColor(COLOR_LINE)
+        c.setLineWidth(0.6)
+        c.line(cx0, yy, cx1, yy)
+        if frac in [0.0, 0.5, 1.0]:
+            c.drawString(cx0, yy + 1.5 * mm, eur(v))
+
+    # X ticks
+    for t in range(0, years + 1, 2):
+        xx = x_for_year(t)
+        c.setStrokeColor(COLOR_LINE)
+        c.setLineWidth(0.6)
+        c.line(xx, cy0, xx, cy0 - 2 * mm)
+        c.setFillColor(COLOR_MUTED)
+        c.setFont("Helvetica", 8.5)
+        c.drawCentredString(xx, cy0 - 6 * mm, f"Yr {t}")
+
+    # Shaded band for typical Irish net cost range
+    band_y_low = y_for_val(typical_irish_net_low)
+    band_y_high = y_for_val(typical_irish_net_high)
+    if band_y_high > cy0 and band_y_low < cy1:
+        band_y_low = max(band_y_low, cy0)
+        band_y_high = min(band_y_high, cy1)
+        c.saveState()
+        try:
+            c.setFillAlpha(0.12)
+        except Exception:
+            pass
+        c.setFillColor(COLOR_PRIMARY)
+        c.rect(cx0, band_y_low, cx1 - cx0, band_y_high - band_y_low, stroke=0, fill=1)
+        c.restoreState()
+        # Band label
+        c.setFillColor(COLOR_PRIMARY)
+        c.setFont("Helvetica-Bold", 8)
+        label_txt = f"Typical Irish cost range: {eur(typical_irish_net_low)}–{eur(typical_irish_net_high)} (after grant)"
+        c.drawRightString(cx1, band_y_high + 1.5 * mm, label_txt)
+
+    # Draw savings lines
+    dashes = [None, (3, 2), (1, 2), (6, 2)]
+    colors = [COLOR_GREEN, HexColor("#1565C0"), HexColor("#558B2F"), HexColor("#6A1B9A")]
+    for i, (series, dash) in enumerate(zip(all_series, dashes)):
+        c.setStrokeColor(colors[i] if i < len(colors) else COLOR_TEXT)
+        c.setLineWidth(1.4 if i == 0 else 1.0)
+        if dash:
+            c.setDash(dash[0], dash[1])
+        else:
+            c.setDash()
+        p = c.beginPath()
+        p.moveTo(x_for_year(0), y_for_val(series[0]))
+        for t in range(1, years + 1):
+            p.lineTo(x_for_year(t), y_for_val(series[t]))
+        c.drawPath(p, stroke=1, fill=0)
+        c.setDash()
+
+    # Legend
+    legend_items = [
+        ("Base electricity price", None, COLOR_GREEN),
+        ("+5% electricity price", (3, 2), HexColor("#1565C0")),
+        ("+10% electricity price", (1, 2), HexColor("#558B2F")),
+        ("+15% electricity price", (6, 2), HexColor("#6A1B9A")),
+    ]
+    line_h = 4.3 * mm
+    box_pad_x = 3.5 * mm
+    box_pad_y = 3.0 * mm
+    box_h = box_pad_y * 2 + line_h * len(legend_items)
+    box_w = 72 * mm
+    box_x = cx0
+    box_y_top = y_top - 18 * mm
+
+    c.saveState()
+    try:
+        c.setFillAlpha(0.92)
+        c.setStrokeAlpha(0.92)
+    except Exception:
+        pass
+    c.setFillColor(HexColor("#FFFFFF"))
+    c.setStrokeColor(COLOR_LINE)
+    c.setLineWidth(0.8)
+    c.roundRect(box_x, box_y_top - box_h, box_w, box_h, radius=2 * mm, stroke=1, fill=1)
+    y_row = box_y_top - box_pad_y - 0.8 * mm
+    for label, dash, lcolor in legend_items:
+        sx0 = box_x + box_pad_x
+        sx1 = sx0 + 14 * mm
+        c.setStrokeColor(lcolor)
+        c.setLineWidth(1.4 if dash is None else 1.0)
+        if dash:
+            c.setDash(dash[0], dash[1])
+        else:
+            c.setDash()
+        c.line(sx0, y_row, sx1, y_row)
+        c.setDash()
+        c.setFillColor(COLOR_TEXT)
+        c.setFont("Helvetica", 8.6)
+        c.drawString(sx1 + 3 * mm, y_row - 3.0 * mm, label)
+        y_row -= line_h
+    c.restoreState()
+
+
+# =========================
 # Public API
 # =========================
 def build_pdf(report: Dict[str, Any]) -> bytes:
@@ -837,14 +1107,20 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
         or meta.get("session_id")
         or "CH-" + str(meta.get("generated_at_utc", "")).replace(":", "").replace("-", "").replace("T", "")[:12]
     )
-    gen_date = str(meta.get("generated_at_utc", "—"))
+    gen_date = str(meta.get("generated_at_utc", "—"))[:10]  # date only
 
     verdict_text_raw = dec.get("verdict_text") or str(dec.get("verdict", "—")).replace("_", " ")
     verdict_text = title_case_keep_acronyms(verdict_text_raw)
 
-    conf_level = title_case_keep_acronyms(str(dec.get("confidence_level", "—")).replace("_", " "))
-    conf_score = dec.get("confidence_score_0_100")
-    conf_score_str = f"{int(conf_score)}/100" if isinstance(conf_score, (int, float)) else "—/100"
+    confidence_basis = str(dec.get("confidence_basis", ""))
+    if not confidence_basis:
+        # Fallback for older engine versions
+        conf_level = str(dec.get("confidence_level", "medium"))
+        primary_method = get_primary_method(report)
+        if primary_method == "bills_based":
+            confidence_basis = "Anchored to your fuel bills — high reliability" if conf_level == "high" else "Anchored to your fuel bills — some uncertainty remains"
+        else:
+            confidence_basis = "BER estimate only — add your annual fuel spend for a sharper result"
 
     accent = verdict_accent(verdict_text)
 
@@ -855,137 +1131,153 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
 
     quote_provided = bool(dec.get("quote_provided", capex is not None))
     ref_capex = safe_float(dec.get("ref_capex_eur")) or 0.0
-    capex_label = dec.get("ref_capex_label")  # e.g. "Reference (typical 12yr payback)" or None
+    capex_label = dec.get("ref_capex_label")
 
     affordable = dec.get("affordable_capex") or {}
     market_verdict = str(dec.get("market_verdict", ""))
-    typical_irish_range = dec.get("typical_irish_range") or [12000, 18000]
+    typical_irish_range = list(dec.get("typical_irish_gross_range") or dec.get("typical_irish_range") or [12000, 18000])
+
     personalised = dec.get("personalised")
 
     grant_applied = bool(inp.get("grant_applied", True))
     grant_value_eur = safe_float(inp.get("grant_value_eur")) or 0.0
 
+    what_this_means_bullets = dec.get("what_this_means") or []
+    typ_savings = safe_float(dec.get("typical_savings_eur")) or 0.0
+
+    # Irish market NET cost range (after grant)
+    bench_low  = typical_irish_range[0] if len(typical_irish_range) > 0 else 12000
+    bench_high = typical_irish_range[1] if len(typical_irish_range) > 1 else 18000
+    net_low  = max(0, bench_low  - int(grant_value_eur)) if grant_applied else bench_low
+    net_high = max(0, bench_high - int(grant_value_eur)) if grant_applied else bench_high
+
     total_pages = 7
 
-    # ----------------------------------------------------------
-    # Page 1 — Cover (No verdict + contact details)
-    # ----------------------------------------------------------
+    # ===========================================================
+    # Page 1 — Cover
+    # ===========================================================
     header_footer(c, 1, total_pages, W, H, margin, subtitle="Cover Page")
+    from reportlab.pdfbase.pdfmetrics import stringWidth
 
     center_x = W / 2
-    center_y = H / 2 + 35 * mm
 
-    logo_size = 34 * mm
-    draw_clearheat_logo(c, center_x - logo_size / 2, center_y + logo_size / 2, size=logo_size, stroke_width=2.4)
+    # Logo + wordmark centred
+    logo_size = 38 * mm
+    logo_y_top = H / 2 + 60 * mm
+    draw_clearheat_logo(c, center_x - logo_size / 2, logo_y_top, size=logo_size, stroke_width=2.6)
 
-    from reportlab.pdfbase.pdfmetrics import stringWidth
+    w_clear = stringWidth("Clear", "Helvetica", 28)
+    w_heat  = stringWidth("Heat",  "Helvetica-Bold", 28)
+    word_w  = w_clear + w_heat
+    y_word  = logo_y_top - logo_size - 5 * mm
     c.setFillColor(COLOR_PRIMARY)
-    w_clear = stringWidth("Clear", "Helvetica", 26)
-    w_heat = stringWidth("Heat", "Helvetica-Bold", 26)
-    word_w = w_clear + w_heat
-
-    y_word = center_y - 20 * mm
-    c.setFont("Helvetica", 26)
+    c.setFont("Helvetica", 28)
     c.drawString(center_x - word_w / 2, y_word, "Clear")
-    c.setFont("Helvetica-Bold", 26)
+    c.setFont("Helvetica-Bold", 28)
     c.drawString(center_x - word_w / 2 + w_clear, y_word, "Heat")
 
-    y = y_word - 18 * mm
+    # Report title
+    y = y_word - 14 * mm
     c.setFillColor(COLOR_TEXT)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(center_x, y, "Heat Pump Payback Report")
-    y -= 10 * mm
+    c.setFont("Helvetica-Bold", 15)
+    c.drawCentredString(center_x, y, "Heat Pump Financial Screening Report")
 
-    c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 10.5)
-    c.drawCentredString(center_x, y, f"Report ID: {report_id}")
-    y -= 6 * mm
-    c.drawCentredString(center_x, y, f"Generated: {gen_date}")
+    # Thin rule
+    y -= 7 * mm
+    c.setStrokeColor(COLOR_LINE)
+    c.setLineWidth(1.0)
+    c.line(center_x - 50 * mm, y, center_x + 50 * mm, y)
 
-    # Contact details
-    y -= 10 * mm
+    # Report metadata
+    y -= 8 * mm
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 10)
-    c.drawCentredString(center_x, y, "clearheat.ie")
-    y -= 5.5 * mm
-    c.drawCentredString(center_x, y, "info@clearheat.ie")
+    c.drawCentredString(center_x, y, f"Report ID: {report_id}   ·   Generated: {gen_date}")
 
-    # TOC
+    # Verdict teaser panel on cover
+    teaser_h = 22 * mm
+    teaser_y = y - 14 * mm
+    panel(c, center_x - 75 * mm, teaser_y, 150 * mm, teaser_h)
+    c.setFillColor(accent)
+    c.roundRect(center_x - 75 * mm, teaser_y - teaser_h, 5 * mm, teaser_h, radius=3 * mm, stroke=0, fill=1)
+    c.rect(center_x - 73 * mm, teaser_y - teaser_h, 3 * mm, teaser_h, stroke=0, fill=1)
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 9)
+    c.drawString(center_x - 66 * mm, teaser_y - 7 * mm, "Preliminary result")
+    c.setFillColor(accent)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(center_x - 66 * mm, teaser_y - 16 * mm, verdict_text)
+
+    # Contact + TOC
+    y = teaser_y - teaser_h - 14 * mm
+    c.setFillColor(COLOR_MUTED)
+    c.setFont("Helvetica", 9.5)
+    c.drawCentredString(center_x, y, "clearheat.ie  ·  info@clearheat.ie")
+
     y -= 14 * mm
     c.setFillColor(COLOR_PRIMARY)
-    c.setFont("Helvetica-Bold", 11.5)
-    c.drawCentredString(center_x, y, "Table of contents")
-    y -= 8 * mm
-
+    c.setFont("Helvetica-Bold", 11)
+    c.drawCentredString(center_x, y, "Contents")
+    y -= 7 * mm
     toc = [
-        "Executive summary",
-        "Best case scenario analysis",
-        "Typical case scenario analysis",
-        "Worst case scenario analysis",
-        "Methodology and disclaimers",
-        "Glossary",
+        ("2", "Executive Summary"),
+        ("3–5", "Scenario Analysis (Best / Typical / Worst)"),
+        ("6", "Methodology and Disclaimers"),
+        ("7", "Glossary"),
     ]
     c.setFillColor(COLOR_TEXT)
     c.setFont("Helvetica", 10)
-    for item in toc:
-        c.drawCentredString(center_x, y, sentence_case_keep_acronyms(item))
+    for pg, item in toc:
+        c.drawCentredString(center_x, y, f"Page {pg}  —  {item}")
         y -= 6 * mm
 
     c.showPage()
 
-    # ----------------------------------------------------------
+    # ===========================================================
     # Page 2 — Executive Summary
-    # ----------------------------------------------------------
+    # ===========================================================
     header_footer(c, 2, total_pages, W, H, margin, subtitle="Executive Summary")
     y = H - margin - 12 * mm
 
     c.setFillColor(COLOR_TEXT)
     c.setFont("Helvetica-Bold", 16)
     c.drawString(x0, y, "Executive Summary")
-    y -= 10 * mm
+    y -= 8 * mm
 
-    # --- Verdict panel (expanded with plain-English explanation) ---
-    what_this_means = dec.get("what_this_means") or []
-    # Panel height: base + room for up to 2 plain-English bullets
-    panel_h = 42 * mm + max(0, len(what_this_means) - 1) * 12 * mm
-    panel(c, x0, y, usable_w, panel_h)
-    c.setFillColor(accent)
-    c.rect(x0, y - panel_h, 4.5 * mm, panel_h, stroke=0, fill=1)
+    # --- Verdict panel ---
+    y = draw_verdict_panel(
+        c, x0, y, usable_w,
+        verdict_text=verdict_text,
+        confidence_basis=confidence_basis,
+        what_this_means=what_this_means_bullets,
+        accent=accent,
+    )
 
-    inner_x = x0 + 9 * mm
-    c.setFillColor(COLOR_PRIMARY)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(inner_x, y - 10 * mm, "Verdict")
-    c.setFillColor(COLOR_TEXT)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(inner_x, y - 21 * mm, verdict_text)
-    c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 9.5)
-    c.drawString(inner_x, y - 30 * mm, f"Confidence: {conf_score_str} ({conf_level})")
-
-    # Plain-English explanation bullets inside the panel
-    vy = y - 38 * mm
-    for bullet in what_this_means[:2]:
-        c.setFillColor(COLOR_TEXT)
-        c.setFont("Helvetica", 9.2)
-        blines = _wrap_lines(bullet, "Helvetica", 9.2, usable_w - 12 * mm)
-        for i, ln in enumerate(blines[:2]):
-            prefix = "  -  " if i == 0 else "      "
-            c.drawString(inner_x, vy, prefix + ln)
-            vy -= 5.5 * mm
-
-    y -= panel_h + 8 * mm
-
-    # --- Annual savings callout (before the table) ---
-    typ_savings = safe_float(dec.get("typical_savings_eur")) or 0.0
-    c.setFillColor(COLOR_PRIMARY)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(x0, y, f"Estimated annual savings (typical):  {eur(typ_savings)} / year")
-    c.setFillColor(COLOR_MUTED)
-    c.setFont("Helvetica", 8.8)
-    method_lbl = "anchored to your fuel bills" if dec.get("primary_method") == "bills_based" else "based on your BER rating"
-    c.drawRightString(x0 + usable_w, y, f"({method_lbl})")
-    y -= 10 * mm
+    # --- Bottom line callout ---
+    if affordable:
+        typ_12yr = (affordable.get("12yr") or {}).get("typical") or {}
+        typ_12yr_net = safe_float(typ_12yr.get("affordable_net_eur")) or 0.0
+        if quote_provided and personalised:
+            pb_typ = personalised.get("payback_years", {}).get("typical")
+            net_cost = safe_float(personalised.get("capex_eur"))
+            bottom_line = (
+                f"Your quoted cost ({eur(net_cost)} net after grant) would typically pay back "
+                f"in {years_text(pb_typ)} years. See your quote breakdown below."
+                if pb_typ else
+                f"Your quoted cost is {eur(net_cost)} net after grant. "
+                f"See the scenario pages for full payback projections."
+            )
+        elif typ_12yr_net > 0:
+            bottom_line = (
+                f"Based on ~{eur(typ_savings)}/yr savings, you could afford to spend up to "
+                f"{eur(typ_12yr_net)} after the SEAI grant and still break even within 12 years."
+            )
+        else:
+            bottom_line = (
+                f"Estimated annual savings are ~{eur(typ_savings)}/yr. "
+                f"See the table below for what you could afford to spend and still break even."
+            )
+        y = draw_bottom_line_callout(c, x0, y, usable_w, bottom_line, accent)
 
     # --- Affordable capex table ---
     if affordable:
@@ -998,114 +1290,138 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
             typical_irish_range=typical_irish_range,
             annual_savings=typ_savings,
         )
-    y -= 4 * mm
 
     # --- Your quote (personalised) — only if quote provided ---
     if quote_provided and personalised:
         pb = personalised.get("payback_years", {})
         net_cost = safe_float(personalised.get("capex_eur"))
         quote_gross = safe_float(personalised.get("hp_quote_eur"))
+        grant_txt = f"€{int(grant_value_eur):,} SEAI grant applied" if grant_applied else "no grant applied"
 
+        y -= 2 * mm
         y = section_title(c, x0, y, "Your quote")
-        panel_qh = 28 * mm
+        panel_qh = 26 * mm
         panel(c, x0, y, usable_w, panel_qh)
         qx = x0 + 5 * mm
         qy = y - 7 * mm
+
         c.setFillColor(COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 10)
-        grant_txt = f"(€{int(grant_value_eur):,} SEAI grant applied)" if grant_applied else "(no grant applied)"
-        c.drawString(qx, qy, f"Quoted: {eur(quote_gross)}  →  Net cost: {eur(net_cost)}  {grant_txt}")
+        c.drawString(qx, qy, f"Quoted: {eur(quote_gross)}   →   Net after grant: {eur(net_cost)}   ({grant_txt})")
         qy -= 7 * mm
+
         c.setFillColor(COLOR_MUTED)
         c.setFont("Helvetica", 9.5)
         pb_best = years_text(pb.get("best"))
         pb_typ  = years_text(pb.get("typical"))
         pb_wst  = years_text(pb.get("worst"))
-        c.drawString(qx, qy, f"Simple payback —  Best: {pb_best} yr   Typical: {pb_typ} yr   Worst: {pb_wst} yr")
-        qy -= 7 * mm
-        c.setFillColor(COLOR_MUTED)
+        c.drawString(qx, qy, f"Simple payback  —  Best case: {pb_best} yr   ·   Typical: {pb_typ} yr   ·   Worst case: {pb_wst} yr")
+        qy -= 6 * mm
         c.setFont("Helvetica-Oblique", 8.5)
-        c.drawString(qx, qy, "Based on your current energy spend vs projected heat pump running costs.")
-        y -= panel_qh + 6 * mm
+        c.drawString(qx, qy, "Payback estimated from your current fuel spend vs projected heat pump running costs.")
+        y -= panel_qh + 4 * mm
 
     # --- Key drivers ---
-    y = section_title(c, x0, y, "Key drivers")
+    y -= 2 * mm
+    y = section_title(c, x0, y, "What's driving this result?")
     drivers = dec.get("key_drivers", []) or []
     if drivers:
-        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:5]], usable_w, size=10, leading=13)
+        y = draw_bullets(c, x0, y, [str(d) for d in drivers[:4]], usable_w, size=9.5, leading=13)
     else:
         y = draw_wrapped(c, x0, y, "Key drivers not available for this run.", usable_w, size=10, color=COLOR_MUTED)
 
     c.showPage()
 
-    # ----------------------------------------------------------
-    # Scenario pages
-    # ----------------------------------------------------------
+    # ===========================================================
+    # Scenario pages (3, 4, 5)
+    # ===========================================================
     def render_scenario_page(page_num: int, scenario_name: str, scenario_block: Dict[str, Any]) -> None:
         nonlocal y
-        header_footer(c, page_num, total_pages, W, H, margin, subtitle=f"{scenario_name} Scenario Analysis")
+        header_footer(c, page_num, total_pages, W, H, margin, subtitle=f"{scenario_name} Scenario")
 
         y = H - margin - 12 * mm
         c.setFillColor(COLOR_TEXT)
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(x0, y, f"{scenario_name} Scenario Analysis")
+        c.drawString(x0, y, f"{scenario_name} Scenario")
         y -= 10 * mm
 
         annual_savings = safe_float(scenario_block.get("savings_eur")) or 0.0
         years = 20
 
-        base = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.00)
-        s5   = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.05)
-        s10  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.10)
-        s15  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.15)
-
-        draw_cumulative_graph(
-            c,
-            x0,
-            y,
-            usable_w,
-            98 * mm,
-            title="Cumulative savings versus upfront cost (with electricity price stress)",
-            capex=ref_capex,
-            series_base=base,
-            series_5=s5,
-            series_10=s10,
-            series_15=s15,
-            capex_label=capex_label,
-        )
-        y -= 108 * mm
-
-        y = section_title(c, x0, y, "Key results (This scenario)")
-        y = kv_row(c, x0, y, "Annual savings (base electricity price)", eur(annual_savings), usable_w)
         if quote_provided:
-            y = kv_row(c, x0, y, "Simple payback (base)", f"{years_text(scenario_block.get('payback_years'))} years", usable_w)
+            # --- Quote provided: show cumulative savings vs actual capex ---
+            base = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.00)
+            s5   = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.05)
+            s10  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.10)
+            s15  = build_cumulative_series(ref_capex, annual_savings, years, elec_uplift=0.15)
 
-        be = find_break_even_year(ref_capex, base)
-        y = kv_row(
-            c, x0, y, "Break-even year (base)",
-            (f"Year {be}" if be is not None else "No break-even within 20 years"),
-            usable_w
-        )
+            draw_cumulative_graph(
+                c, x0, y, usable_w, 98 * mm,
+                title=f"Cumulative savings vs your net cost of {eur(ref_capex)}",
+                capex=ref_capex,
+                series_base=base, series_5=s5, series_10=s10, series_15=s15,
+                capex_label=None,  # quote provided: label is in title
+            )
+            y -= 108 * mm
 
-        y -= 2 * mm
-        y = section_title(c, x0, y, "How to read this graph")
-        explain_lines = [
-            "The horizontal line shows the upfront cost you'd be paying back (your quote net of grant, or the typical 12-year reference if no quote was provided).",
-            "The solid savings line shows how your annual savings stack up year by year. When it crosses the horizontal line, you've broken even — the system has paid for itself.",
-            "The dashed lines show what happens if electricity prices rise 5%, 10%, or 15% — useful for testing how robust the outcome is to higher running costs.",
-            "If the savings line never crosses the horizontal line within 20 years, the system doesn't pay back under that scenario.",
-        ]
+            y = section_title(c, x0, y, "Key figures (this scenario)")
+            y = kv_row(c, x0, y, "Annual savings (base electricity price)", eur(annual_savings), usable_w)
+            y = kv_row(c, x0, y, "Simple payback (base price)", f"{years_text(scenario_block.get('payback_years'))} years", usable_w)
+            be = find_break_even_year(ref_capex, base)
+            y = kv_row(c, x0, y, "Break-even year (base price)",
+                       f"Year {be}" if be is not None else "Beyond 20 years", usable_w)
+
+            y -= 2 * mm
+            y = section_title(c, x0, y, "How to read this graph")
+            explain_lines = [
+                f"The horizontal line is your net cost after grant ({eur(ref_capex)}). When the savings line crosses it, the system has paid for itself.",
+                "The solid line uses today's electricity prices. The dashed lines show the effect of electricity rising 5%, 10%, or 15% — a useful stress test.",
+                "If savings never cross the line within 20 years, the system doesn't pay back under that electricity price scenario.",
+            ]
+        else:
+            # --- No quote: show savings projection with Irish cost band ---
+            draw_savings_projection_graph(
+                c, x0, y, usable_w, 98 * mm,
+                annual_savings=annual_savings,
+                typical_irish_net_low=net_low,
+                typical_irish_net_high=net_high,
+                elec_uplift_levels=[0.0, 0.05, 0.10, 0.15],
+            )
+            y -= 108 * mm
+
+            # For stats, use the 12yr typical affordable as a reference
+            ref_for_stats = float((affordable.get("12yr") or {}).get(
+                "best" if scenario_name.startswith("Best") else
+                "worst" if scenario_name.startswith("Worst") else "typical",
+                {}
+            ).get("affordable_net_eur") or ref_capex)
+
+            y = section_title(c, x0, y, "Key figures (this scenario)")
+            y = kv_row(c, x0, y, "Annual savings (base electricity price)", eur(annual_savings), usable_w)
+            y = kv_row(c, x0, y, "Max spend to break even in 12 yrs (after grant)", eur(ref_for_stats), usable_w)
+            typical_be = int(round(ref_for_stats / annual_savings)) if annual_savings > 0 else None
+            y = kv_row(c, x0, y, "Implied break-even at typical Irish cost (after grant)",
+                       f"~Year {typical_be}" if typical_be and typical_be <= 20 else "Beyond 20 years", usable_w)
+
+            y -= 2 * mm
+            y = section_title(c, x0, y, "How to read this graph")
+            explain_lines = [
+                f"The shaded band ({eur(net_low)}–{eur(net_high)} after grant) shows the typical cost range for an Irish heat pump installation.",
+                "The savings lines show how your annual savings accumulate over time. When a line enters the shaded band, savings are starting to cover a typical installation.",
+                "The solid line uses today's electricity prices. Dashed lines show electricity rising 5%, 10%, or 15% — your savings reduce as electricity becomes more expensive.",
+                "Once you have a quote, re-run with the quote amount for a personalised payback analysis.",
+            ]
+
         y = draw_bullets(c, x0, y, explain_lines, usable_w, size=10, leading=13)
-
         c.showPage()
 
-    render_scenario_page(3, "Best case", best)
+    render_scenario_page(3, "Best case",    best)
     render_scenario_page(4, "Typical case", typ)
-    render_scenario_page(5, "Worst case", worst)
+    render_scenario_page(5, "Worst case",   worst)
 
-    # ----------------------------------------------------------
+    # ===========================================================
     # Page 6 — Methodology and Disclaimers
-    # ----------------------------------------------------------
+    # ===========================================================
     header_footer(c, 6, total_pages, W, H, margin, subtitle="Methodology and Disclaimers")
     y = H - margin - 12 * mm
 
@@ -1114,47 +1430,46 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
     c.drawString(x0, y, "Methodology and Disclaimers")
     y -= 10 * mm
 
-    y = section_title(c, x0, y, "Methodology")
+    y = section_title(c, x0, y, "How this report works")
     y = draw_bullets(c, x0, y, methodology_text(), usable_w, size=10, leading=13)
 
     y -= 4 * mm
-    y = section_title(c, x0, y, "Cross-check (If bills were provided)")
+    y = section_title(c, x0, y, "Cross-check" + (" (bills vs BER)" if cross.get("consistency") != "unknown" else ""))
     consistency = title_case_keep_acronyms(str(cross.get("consistency", "unknown")).replace("_", " "))
     notes = cross.get("notes", []) or []
-    y = draw_wrapped(c, x0, y, f"Consistency status: {consistency}.", usable_w, size=10, leading=13)
+    y = draw_wrapped(c, x0, y, f"Status: {consistency}.", usable_w, size=10, leading=13)
     if notes:
         y -= 2 * mm
         y = draw_bullets(c, x0, y, [str(n) for n in notes[:5]], usable_w, size=10, leading=13)
 
     y -= 4 * mm
-    y = section_title(c, x0, y, "Disclaimers")
+    y = section_title(c, x0, y, "Important disclaimers")
     y = draw_bullets(c, x0, y, disclaimer_text(), usable_w, size=10, leading=13)
 
     c.showPage()
 
-    # ----------------------------------------------------------
+    # ===========================================================
     # Page 7 — Glossary
-    # ----------------------------------------------------------
+    # ===========================================================
     header_footer(c, 7, total_pages, W, H, margin, subtitle="Glossary")
     y = H - margin - 12 * mm
 
     c.setFillColor(COLOR_TEXT)
     c.setFont("Helvetica-Bold", 16)
     c.drawString(x0, y, "Glossary")
-    y -= 10 * mm
-
+    y -= 8 * mm
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 10)
-    c.drawString(x0, y, "Short explanations of the terms used in this report.")
-    y -= 12 * mm
+    c.drawString(x0, y, "Plain-English explanations of the terms used in this report.")
+    y -= 10 * mm
 
     for term, definition in GLOSSARY:
         c.setFillColor(COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 11)
         c.drawString(x0, y, title_case_keep_acronyms(term))
-        y -= 6 * mm
+        y -= 5.5 * mm
         y = draw_wrapped(c, x0, y, definition, usable_w, size=9.8, leading=12, color=COLOR_TEXT, sentence_case=True)
-        y -= 5 * mm
+        y -= 6 * mm
         if y < margin + 25 * mm:
             c.showPage()
             header_footer(c, 7, total_pages, W, H, margin, subtitle="Glossary (Continued)")

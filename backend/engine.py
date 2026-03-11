@@ -790,39 +790,110 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Key drivers (short, human-readable)
     key_drivers: List[str] = []
 
-    # price ratio driver
+    # 1. Data quality — most important factor for homeowner trust
+    if bills_available:
+        key_drivers.append(
+            "Your actual fuel spend was used as the basis for this estimate — "
+            "this is more accurate than using the BER rating alone."
+        )
+    else:
+        key_drivers.append(
+            "No fuel bills provided: savings are estimated from your BER rating and home size. "
+            "Re-running with your annual gas or oil spend will give a more precise result."
+        )
+
+    # 2. Electricity vs fuel price ratio — biggest swing factor
     if fuel_type == "gas":
-        if elec_price >= 3.0 * fuel_price:
-            key_drivers.append("electricity much higher than gas price")
-        elif elec_price >= 2.0 * fuel_price:
-            key_drivers.append("electricity higher than gas price")
+        ratio = elec_price / max(1e-9, fuel_price)
+        if ratio >= 3.0:
+            key_drivers.append(
+                f"Electricity costs {ratio:.1f}\u00d7 more per unit than gas (€{elec_price:.2f} vs "
+                f"€{fuel_price:.3f}/kWh). This narrows the heat pump's running-cost advantage — "
+                f"savings exist, but payback takes longer than the Irish average."
+            )
+        elif ratio >= 2.0:
+            key_drivers.append(
+                f"The electricity/gas price ratio is {ratio:.1f}\u00d7 (€{elec_price:.2f} electricity, "
+                f"€{fuel_price:.3f} gas/kWh). This is within the typical Irish range and is "
+                f"factored into the savings estimate."
+            )
+        else:
+            key_drivers.append(
+                f"Gas is relatively expensive (€{fuel_price:.3f}/kWh) versus electricity (€{elec_price:.2f}/kWh) — "
+                f"a favourable ratio ({ratio:.1f}\u00d7) that improves the heat pump economics."
+            )
     else:
         eff_eur_per_kwh_th = (fuel_price / 10.0) / max(1e-6, boiler_eff)
-        if elec_price >= 2.5 * eff_eur_per_kwh_th:
-            key_drivers.append("electricity much higher than oil-delivered cost")
-        elif elec_price >= 1.8 * eff_eur_per_kwh_th:
-            key_drivers.append("electricity higher than oil-delivered cost")
+        ratio = elec_price / max(1e-9, eff_eur_per_kwh_th)
+        if ratio >= 2.5:
+            key_drivers.append(
+                f"Electricity/oil ratio is {ratio:.1f}\u00d7 delivered heat cost — this reduces (but does "
+                f"not eliminate) savings. A well-commissioned heat pump is still likely to save money."
+            )
+        else:
+            key_drivers.append(
+                f"Oil is expensive relative to electricity ({ratio:.1f}\u00d7 delivered heat cost ratio) — "
+                f"this is favourable for heat pump savings and improves the economics."
+            )
 
+    # 3. Emitter type — affects efficiency directly
     if emitters == "radiators":
         if flow_temp_capability == "low":
-            key_drivers.append("radiator setup likely needs higher flow temperatures (lower efficiency)")
+            key_drivers.append(
+                "Your radiators can operate at low flow temperatures — this maximises heat pump "
+                "efficiency (SCOP) and is one of the key factors driving the positive estimate."
+            )
         elif flow_temp_capability == "high":
-            key_drivers.append("radiator setup likely supports lower flow temperatures (higher efficiency)")
+            key_drivers.append(
+                "Your radiators need higher flow temperatures to heat the home adequately. "
+                "This reduces heat pump efficiency vs underfloor heating — the typical scenario "
+                "accounts for this."
+            )
         else:
-            key_drivers.append("radiator system lowers seasonal COP vs UFH")
+            key_drivers.append(
+                "Standard radiator system: heat pump efficiency depends on how well the system is "
+                "designed and sized. Upgrading any undersized radiators before installation improves savings."
+            )
+    else:
+        key_drivers.append(
+            "Underfloor heating allows low flow temperatures — ideal for heat pumps. "
+            "This maximises efficiency (SCOP) and is a positive factor in this estimate."
+        )
 
-    if pattern == "rare":
-        key_drivers.append("heating rarely on reduces potential savings")
+    # 4. Grant
     if grant_applied:
-        key_drivers.append("grant reduces upfront cost")
-    if ber in {"E","F","G"}:
-        key_drivers.append("lower BER increases heat demand")
-    if ber in {"A","B"}:
-        key_drivers.append("higher BER reduces heat demand (can reduce savings potential)")
-    if wood_use in {"some","lots"} and not bills_available:
-        key_drivers.append("wood heating assumed to offset space heat in BER-based estimate")
-    if bills_available and (not dhw_on_same_fuel):
-        key_drivers.append("hot water assumed separate from space-heating fuel (adds DHW allowance)")
+        key_drivers.append(
+            f"The €{int(grant_value):,} SEAI grant is included — all payback and budget figures in "
+            f"this report reflect your net out-of-pocket cost after the grant is applied."
+        )
+
+    # 5. BER band
+    if ber in {"E", "F", "G"}:
+        key_drivers.append(
+            f"BER {ber}: your home has relatively high heat demand. While this increases potential "
+            f"savings, it is worth improving insulation first — a smaller heat pump costs less "
+            f"and runs more efficiently."
+        )
+    elif ber in {"A", "B"}:
+        key_drivers.append(
+            f"BER {ber}: well-insulated home with low heat demand. A smaller heat pump is needed, "
+            f"which reduces upfront cost — but also limits the maximum savings potential."
+        )
+
+    # 6. Heating pattern
+    if pattern == "rare":
+        key_drivers.append(
+            "Your home is heated infrequently. Heat pumps work best running steadily at lower "
+            "output — intermittent use reduces their running-cost advantage, and is reflected "
+            "in the lower savings estimate."
+        )
+
+    # 7. Wood use (BER estimate only)
+    if wood_use in {"some", "lots"} and not bills_available:
+        key_drivers.append(
+            "Wood/solid fuel heating was noted. The BER estimate assumes wood offsets some "
+            "space heating — if the heat pump fully replaces wood use, actual savings may differ."
+        )
 
     # Decision text blocks (the "product")
     verdict_text = VERDICT_TEXT[verdict]
@@ -948,6 +1019,13 @@ def run_analysis(raw_inputs: Dict[str, Any]) -> Dict[str, Any]:
             "confidence_level": confidence,
             "confidence_score_0_100": score,
             "confidence_text": confidence_text,
+            "confidence_basis": (
+                "Anchored to your fuel bills — high reliability"
+                if bills_available and confidence == "high" else
+                "Anchored to your fuel bills — some uncertainty remains"
+                if bills_available else
+                "BER estimate only — add your annual fuel spend for a sharper result"
+            ),
 
             "what_this_means": decision_summary,
 

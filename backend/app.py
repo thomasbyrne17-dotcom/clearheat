@@ -275,7 +275,7 @@ def report_preview(report_id: str):
         "context": preview_context,
         "grossQuoteEur": inputs.get("hp_quote_eur"),
         "netCapexEur": inputs.get("hp_capex_eur"),
-        "disclaimerLine": "Independent screening estimate — not affiliated with installers or manufacturers.",
+        "disclaimerLine": "Independent heat pump financial screening.",
         "sections": [
             "Executive summary",
             "Best / typical / worst scenarios",
@@ -370,8 +370,8 @@ def _send_report_email(email: str, report_id: str, pdf_bytes: bytes, verdict_cla
   {review_section}
 
   <p style="margin-top:32px;font-size:12px;color:#888;">
-    ClearHeat — Independent heat pump financial screening for Irish homeowners.<br>
-    Not affiliated with any installer or manufacturer.
+    ClearHeat — Heat pump financial screening for Irish homeowners.<br>
+    clearheat.ie · info@clearheat.ie
   </p>
 </div>
 """

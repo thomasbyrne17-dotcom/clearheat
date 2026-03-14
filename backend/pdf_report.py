@@ -305,7 +305,7 @@ def header_footer(
 
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 8)
-    c.drawString(margin, margin - 10 * mm, "Independent screening estimate — not affiliated with installers or manufacturers.")
+    c.drawString(margin, margin - 10 * mm, "Independent heat pump financial screening for Irish homeowners.")
     c.drawRightString(W - margin, margin - 10 * mm, f"Page {page_num} of {total_pages}")
 
 
@@ -374,10 +374,13 @@ def affordable_capex_table(
     market_verdict: str,
     typical_irish_range: List[int],
     annual_savings: float,
+    scenario_savings: Optional[Dict[str, float]] = None,
 ) -> float:
     """
     Homeowner-friendly table: rows = scenarios, columns = payback horizons.
     Shows the max you could spend (after grant) and still break even in that time.
+    scenario_savings: {"best": float, "typical": float, "worst": float} — used to
+    show "No payback" instead of "Covered by grant" when savings are negative.
     """
     horizons     = ["8yr",      "10yr",      "12yr",      "15yr"]
     hz_labels    = ["8 yrs",   "10 yrs",    "12 yrs",    "15 yrs"]
@@ -399,10 +402,16 @@ def affordable_capex_table(
 
     # ---- Explanatory intro ----
     grant_phrase = f"after the €{int(grant_value_eur):,} SEAI grant" if grant_applied else "with no grant applied"
-    intro = (
-        f"Based on ~{eur(annual_savings)}/yr estimated savings, the table shows the maximum you could "
-        f"spend ({grant_phrase}) and still break even within each timeframe."
-    )
+    if annual_savings <= 0:
+        intro = (
+            f"Typical estimated savings are ~{eur(annual_savings)}/yr. At this level, a heat pump would cost "
+            f"more to run than your current system — see per-scenario breakdown below."
+        )
+    else:
+        intro = (
+            f"Based on ~{eur(annual_savings)}/yr estimated savings, the table shows the maximum you could "
+            f"spend ({grant_phrase}) and still break even within each timeframe."
+        )
     c.setFillColor(COLOR_MUTED)
     c.setFont("Helvetica", 8.5)
     intro_lines = _wrap_lines(intro, "Helvetica", 8.5, w - 2 * pad)
@@ -478,11 +487,28 @@ def affordable_capex_table(
         for ci, hz_key in enumerate(horizons, start=1):
             sc_data = affordable.get(hz_key, {}).get(sc_key, {})
             net = sc_data.get("affordable_net_eur")
-            val_txt = eur(net) if (net is not None and net > 0) else "Covered by grant"
+            sc_sav = (scenario_savings or {}).get(sc_key, annual_savings)
+            if net is not None and net > 0:
+                val_txt = eur(net)
+            elif sc_sav <= 0:
+                # Negative savings: heat pump costs more to run — no payback at any spend level
+                val_txt = "No payback"
+            else:
+                # Positive savings but grant covers the affordable spend
+                val_txt = "Covered by grant"
             is_highlight = is_typical and hz_key == "12yr"
+            # Use red tint for "No payback" cells, green for highlight, neutral otherwise
+            if val_txt == "No payback":
+                cell_bg = HexColor("#FDECEA")
+                cell_color = COLOR_RED
+            elif is_highlight:
+                cell_bg = HexColor("#D4EDD4")
+                cell_color = COLOR_PRIMARY
+            else:
+                cell_bg = row_bg
+                cell_color = COLOR_TEXT
             draw_cell(ci, rt, row_h, val_txt, bold=is_highlight, right=True,
-                      color=COLOR_PRIMARY if is_highlight else COLOR_TEXT,
-                      bg=HexColor("#D4EDD4") if is_highlight else row_bg)
+                      color=cell_color, bg=cell_bg)
 
     # ---- Footer context ----
     bench_low, bench_high = (typical_irish_range[0], typical_irish_range[1]) if typical_irish_range else (12000, 18000)
@@ -970,7 +996,7 @@ def draw_savings_projection_graph(
     c.setFont("Helvetica-Bold", 10.8)
     c.drawString(x + pad, y_top - pad - 1.5 * mm, "How quickly could your savings add up?")
 
-    cx0 = x + pad
+    cx0 = x + pad + 17 * mm  # extra left margin for y-axis labels
     cx1 = x + w - pad
     legend_safe_h = 22 * mm
     cy0 = y_top - h + 14 * mm
@@ -987,10 +1013,10 @@ def draw_savings_projection_graph(
         all_series.append(series)
 
     all_vals = [v for s in all_series for v in s] + [typical_irish_net_low, typical_irish_net_high]
-    vmin = 0.0
+    vmin = min(0.0, min(all_vals)) * 1.05  # extend below zero for negative-savings scenarios
     vmax = max(all_vals) * 1.05
     if abs(vmax - vmin) < 1e-9:
-        vmax = 1.0
+        vmax = vmin + 1.0
 
     def x_for_year(t: int) -> float:
         return cx0 + (cx1 - cx0) * (t / years)
@@ -1014,7 +1040,7 @@ def draw_savings_projection_graph(
         c.setLineWidth(0.6)
         c.line(cx0, yy, cx1, yy)
         if frac in [0.0, 0.5, 1.0]:
-            c.drawString(cx0, yy + 1.5 * mm, eur(v))
+            c.drawRightString(cx0 - 2 * mm, yy + 1.5 * mm, eur(v))
 
     # X ticks
     for t in range(0, years + 1, 2):
@@ -1026,20 +1052,28 @@ def draw_savings_projection_graph(
         c.setFont("Helvetica", 8.5)
         c.drawCentredString(xx, cy0 - 6 * mm, f"Yr {t}")
 
+    # Zero reference line (visible when vmin < 0)
+    if vmin < 0:
+        y_zero = y_for_val(0.0)
+        c.setStrokeColor(COLOR_MUTED)
+        c.setLineWidth(0.8)
+        c.setDash(4, 3)
+        c.line(cx0, y_zero, cx1, y_zero)
+        c.setDash()
+        c.setFillColor(COLOR_MUTED)
+        c.setFont("Helvetica", 7.5)
+        c.drawRightString(cx0 - 1 * mm, y_zero + 1 * mm, "€0")
+
     # Shaded band for typical Irish net cost range
     band_y_low = y_for_val(typical_irish_net_low)
     band_y_high = y_for_val(typical_irish_net_high)
     if band_y_high > cy0 and band_y_low < cy1:
         band_y_low = max(band_y_low, cy0)
         band_y_high = min(band_y_high, cy1)
-        c.saveState()
-        try:
-            c.setFillAlpha(0.12)
-        except Exception:
-            pass
-        c.setFillColor(COLOR_PRIMARY)
+        # Use a solid light-blue colour (equivalent to PRIMARY at ~12% on white)
+        # to avoid alpha-transparency rendering issues across PDF viewers
+        c.setFillColor(HexColor("#D8E0EA"))
         c.rect(cx0, band_y_low, cx1 - cx0, band_y_high - band_y_low, stroke=0, fill=1)
-        c.restoreState()
         # Band label
         c.setFillColor(COLOR_PRIMARY)
         c.setFont("Helvetica-Bold", 8)
@@ -1293,14 +1327,25 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
                 f"Based on ~{eur(typ_savings)}/yr savings, you could afford to spend up to "
                 f"{eur(typ_12yr_net)} after the SEAI grant and still break even within 12 years."
             )
+        elif typ_savings <= 0:
+            bottom_line = (
+                f"Estimated typical savings are ~{eur(typ_savings)}/yr — the heat pump would cost "
+                f"more to run than your current system at typical assumptions. "
+                f"The best-case scenario may still save money; see the scenario breakdown below."
+            )
         else:
             bottom_line = (
                 f"Estimated annual savings are ~{eur(typ_savings)}/yr. "
-                f"See the table below for what you could afford to spend and still break even."
+                f"See the table below for the maximum you could spend and still break even."
             )
         y = draw_bottom_line_callout(c, x0, y, usable_w, bottom_line, accent)
 
     # --- Affordable capex table ---
+    scenario_savings_map = {
+        "best":    safe_float(best.get("savings_eur")) or 0.0,
+        "typical": safe_float(typ.get("savings_eur")) or 0.0,
+        "worst":   safe_float(worst.get("savings_eur")) or 0.0,
+    }
     if affordable:
         y = affordable_capex_table(
             c, x0, y, usable_w,
@@ -1310,6 +1355,7 @@ def build_pdf(report: Dict[str, Any]) -> bytes:
             market_verdict=market_verdict,
             typical_irish_range=typical_irish_range,
             annual_savings=typ_savings,
+            scenario_savings=scenario_savings_map,
         )
 
     # --- Your quote (personalised) — only if quote provided ---

@@ -100,7 +100,7 @@ export default function HomePage() {
               <Link href="/calculator">Get Free Report</Link>
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Free • Instant PDF download • No account needed
+              Free • Report delivered by email • No account needed
             </p>
           </div>
 
@@ -206,7 +206,7 @@ export default function HomePage() {
           <Link href="/calculator">Get Free Report</Link>
         </Button>
         <p className="text-xs text-muted-foreground">
-          Free • No account needed • Instant PDF download
+          Free • No account needed • Report by email
         </p>
       </section>
     </main>

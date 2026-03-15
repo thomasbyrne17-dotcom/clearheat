@@ -445,8 +445,11 @@ export default function ReportPreviewPage() {
                   onChange={(e) => setLeadForm({ ...leadForm, consent_installer_contact: e.target.checked })}
                 />
                 <label htmlFor="lead-consent" className="text-sm text-muted-foreground">
-                  I agree to be contacted by a ClearHeat-listed specialist regarding my analysis.
-                  My details will not be shared with anyone else.
+                  I consent to my name, email, phone number, and property details from this
+                  analysis being shared with a registered heat pump installer from the ClearHeat
+                  network so they can contact me about quotes. I can withdraw this consent at any
+                  time by emailing{" "}
+                  <a href="mailto:info@clearheat.ie" className="underline">info@clearheat.ie</a>.
                 </label>
               </div>
 

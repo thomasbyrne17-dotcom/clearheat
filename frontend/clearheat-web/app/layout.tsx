@@ -1,7 +1,8 @@
-import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import CookieBanner from "@/components/clearheat/CookieBanner";
+import SiteFooter from "@/components/clearheat/SiteFooter";
 import "./globals.css";
 
 
@@ -30,27 +31,9 @@ export default function RootLayout({
   return (
   <html lang="en">
     <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-      {/* Google Analytics */}
-      <Script
-        strategy="afterInteractive"
-        src="https://www.googletagmanager.com/gtag/js?id=G-WX650QLEBG"
-      />
-      <Script
-        id="ga-init"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-WX650QLEBG');
-          `,
-        }}
-      />
-
       {children}
-
-      {/* Vercel Analytics */}
+      <SiteFooter />
+      <CookieBanner />
       <Analytics />
     </body>
   </html>

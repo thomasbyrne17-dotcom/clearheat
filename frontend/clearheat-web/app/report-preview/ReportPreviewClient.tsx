@@ -115,8 +115,6 @@ export default function ReportPreviewPage() {
   const [data, setData] = useState<PreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [downloadLoading, setDownloadLoading] = useState(false);
-
   // Email report state
   const [emailForm, setEmailForm] = useState<EmailForm>({ email: "" });
   const [emailSubmitting, setEmailSubmitting] = useState(false);
@@ -178,42 +176,6 @@ export default function ReportPreviewPage() {
 
     run();
   }, [reportId]);
-
-  const onDownloadClick = async () => {
-    if (!reportId || downloadLoading) return;
-
-    gaEvent("report_pdf_download", {
-      report_id: reportId,
-      verdict_class: data?.verdictClass ?? undefined,
-    });
-
-    try {
-      setDownloadLoading(true);
-
-      const res = await fetch(`/api/pdf?reportId=${encodeURIComponent(reportId)}`, {
-        method: "GET",
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "PDF download failed");
-      }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "clearheat_report.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setError(e?.message ?? "Error downloading PDF");
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
 
   const onEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,23 +345,9 @@ export default function ReportPreviewPage() {
             </div>
           </section>
 
-          {/* Download free PDF */}
-          <section className="space-y-2">
-            <Button
-              className="w-full"
-              onClick={onDownloadClick}
-              disabled={downloadLoading}
-            >
-              {downloadLoading ? "Preparing download…" : "Download Full Report (Free)"}
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              Independent screening estimate — not affiliated with installers or manufacturers.
-            </p>
-          </section>
-
           {/* Email report */}
           <section className="rounded-xl border p-4 space-y-3">
-            <div className="text-sm font-medium">Email me a copy</div>
+            <div className="text-sm font-medium">Get your full report by email</div>
             {emailSent ? (
               <p className="text-sm text-green-700">
                 Report sent — check your inbox. If you found it useful, we'd really appreciate a Google review.

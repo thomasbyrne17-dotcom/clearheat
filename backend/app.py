@@ -287,18 +287,8 @@ def report_preview(report_id: str):
 
 @app.get("/report/{report_id}/pdf")
 def report_pdf(report_id: str):
-    """Returns the PDF — free, no paywall."""
-    _cleanup_store()
-
-    rec = REPORT_STORE.get(report_id)
-    if not rec:
-        raise HTTPException(status_code=404, detail="Report not found or expired")
-
-    return Response(
-        content=rec["pdf_bytes"],
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=clearheat_report.pdf"},
-    )
+    """PDF direct download is disabled — reports are delivered by email only."""
+    raise HTTPException(status_code=410, detail="Direct PDF download is no longer available. Use the email option on the report page.")
 
 
 GOOGLE_REVIEW_URL = os.getenv("GOOGLE_REVIEW_URL", "")
@@ -427,12 +417,12 @@ def submit_lead(req: LeadRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(lead)
 
-    _send_installer_notification(lead)
+    _send_installer_notification(lead, db)
 
     return {"success": True, "leadId": lead.id}
 
 
-def _send_installer_notification(lead: Lead) -> None:
+def _send_installer_notification(lead: Lead, db: Session) -> None:
     """Sends a formatted lead email to the installer. Fails silently."""
     if not RESEND_API_KEY or not INSTALLER_EMAIL:
         return
@@ -493,6 +483,7 @@ def _send_installer_notification(lead: Lead) -> None:
 
         lead.installer_notified = True
         lead.installer_email_sent_at = datetime.now(timezone.utc)
+        db.commit()
 
     except Exception as e:
         print(f"Warning: installer email failed: {e}")
